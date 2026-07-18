@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Kelime Kartpostalı — İngilizce Öğren</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F3ECD9">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=Work+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F3ECD9;
+    --paper-dark:#E8DFC6;
+    --ink:#1F2A44;
+    --ink-soft:#4B5670;
+    --stamp:#E1A940;
+    --teal:#2F8F7A;
+    --rust:#B5482F;
+    --line:#D8CDA9;
+    --white:#FFFDF6;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(31,42,68,0.06) 1px, transparent 1px);
+    background-size:14px 14px;
+    font-family:'Work Sans', sans-serif;
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+  }
+  #app{
+    width:100%;
+    max-width:460px;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    background:var(--paper);
+    box-shadow:0 0 40px rgba(0,0,0,0.08);
+  }
+  header{
+    padding:22px 20px 14px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom:1px dashed var(--line);
+  }
+  header h1{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:22px;
+    margin:0;
+    letter-spacing:0.2px;
+  }
+  header h1 span{color:var(--rust); font-style:italic; font-weight:500;}
+  .stampbadge{
+    font-family:'Space Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    border:1px dashed var(--stamp);
+    padding:4px 8px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+  main{flex:1; padding:16px 16px 90px; overflow-y:auto;}
+  nav.tabs{
+    position:fixed;
+    bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:460px;
+    display:flex;
+    background:var(--white);
+    border-top:1px solid var(--line);
+    z-index:20;
+  }
+  nav.tabs button{
+    flex:1;
+    background:none; border:none;
+    padding:12px 4px 10px;
+    font-family:'Work Sans';
+    font-size:12px;
+    font-weight:600;
+    color:var(--ink-soft);
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    cursor:pointer;
+  }
+  nav.tabs button .ic{font-size:18px;}
+  nav.tabs button.active{color:var(--rust);}
+  nav.tabs button.active .ic{transform:translateY(-1px);}
+
+  .card-panel{
+    background:var(--white);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .section-title{
+    font-family:'Fraunces', serif;
+    font-size:18px;
+    font-weight:600;
+    margin:4px 0 12px;
+  }
+  label.field{
+    display:block;
+    font-size:12px;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin:10px 0 4px;
+  }
+  input[type=text], input[type=number]{
+    width:100%;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-family:'Work Sans';
+    font-size:15px;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  input:focus{outline:2px solid var(--stamp);}
+  .photo-row{display:flex; gap:10px; align-items:center; margin-top:10px;}
+  .photo-preview{
+    width:56px; height:56px; border-radius:10px;
+    border:1px dashed var(--line);
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px; overflow:hidden; background:var(--paper);
+    flex-shrink:0;
+  }
+  .photo-preview img{width:100%; height:100%; object-fit:cover;}
+  .filebtn{
+    font-size:12px; font-weight:600; color:var(--ink);
+    border:1px solid var(--ink); border-radius:999px;
+    padding:8px 12px; cursor:pointer; background:none;
+  }
+  .primary-btn{
+    width:100%;
+    margin-top:14px;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    border-radius:10px;
+    padding:12px;
+    font-family:'Work Sans';
+    font-weight:600;
+    font-size:15px;
+    cursor:pointer;
+  }
+  .primary-btn:active{transform:translateY(1px);}
+  .primary-btn.rust{background:var(--rust);}
+  .primary-btn.teal{background:var(--teal);}
+
+  .wordrow{
+    display:flex; align-items:center; gap:12px;
+    padding:10px 4px;
+    border-bottom:1px solid var(--paper-dark);
+  }
+  .wordrow:last-child{border-bottom:none;}
+  .wordrow .thumb{
+    width:44px; height:44px; border-radius:8px; overflow:hidden;
+    background:var(--paper-dark); display:flex; align-items:center; justify-content:center;
+    font-size:18px; flex-shrink:0;
+  }
+  .wordrow .thumb img{width:100%; height:100%; object-fit:cover;}
+  .wordrow .txt{flex:1; min-width:0;}
+  .wordrow .en{font-weight:600; font-size:15px;}
+  .wordrow .tr{font-size:12px; color:var(--ink-soft);}
+  .wordrow .stat{font-family:'Space Mono'; font-size:10px; color:var(--ink-soft); text-align:right;}
+  .wordrow .del{
+    border:none; background:none; color:var(--rust); font-size:16px; cursor:pointer; padding:6px;
+  }
+  .empty{
+    text-align:center; padding:40px 10px; color:var(--ink-soft);
+  }
+  .empty .big{font-size:34px; margin-bottom:8px;}
+
+  /* review area */
+  .deck-wrap{
+    position:relative;
+    height:66vh; max-height:520px; min-height:380px;
+    margin-top:6px;
+  }
+  .progress-bar{
+    height:6px; background:var(--paper-dark); border-radius:99px; overflow:hidden; margin-bottom:14px;
+  }
+  .progress-bar > div{height:100%; background:var(--teal); transition:width .25s ease;}
+  .postcard{
+    position:absolute; inset:0;
+    background:var(--white);
+    border-radius:16px;
+    border:1px solid var(--line);
+    box-shadow:0 10px 24px rgba(31,42,68,0.12);
+    display:flex; flex-direction:column;
+    overflow:hidden;
+    touch-action:none;
+    will-change:transform;
+    user-select:none;
+  }
+  .postcard .stripe{
+    height:9px;
+    background:repeating-linear-gradient(-45deg, var(--rust) 0 10px, var(--white) 10px 20px, var(--ink) 20px 30px, var(--white) 30px 40px);
+    flex-shrink:0;
+  }
+  .postcard .imgzone{
+    flex:1;
+    background:var(--paper-dark);
+    display:flex; align-items:center; justify-content:center;
+    font-size:70px;
+    position:relative;
+  }
+  .postcard .imgzone img{width:100%; height:100%; object-fit:cover;}
+  .postmark{
+    position:absolute; top:10px; right:10px;
+    width:44px; height:44px; border-radius:50%;
+    border:2px dashed var(--stamp);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono'; font-size:11px; color:var(--ink-soft);
+    background:rgba(255,253,246,0.85);
+  }
+  .postcard .textzone{
+    padding:16px 18px 20px;
+    border-top:1px dashed var(--line);
+    text-align:center;
+  }
+  .postcard .en-word{
+    font-family:'Fraunces', serif; font-weight:700; font-size:28px;
+  }
+  .postcard .tr-word{
+    margin-top:4px; font-size:14px; color:var(--ink-soft);
+    opacity:0; transition:opacity .2s ease;
+  }
+  .postcard.flipped .tr-word{opacity:1;}
+  .hint{
+    text-align:center; font-size:11px; color:var(--ink-soft); margin-top:6px;
+  }
+  .swipe-tag{
+    position:absolute; top:22px; padding:6px 12px;
+    font-family:'Space Mono'; font-weight:700; font-size:13px;
+    border-radius:6px; border:2px solid; opacity:0;
+    text-transform:uppercase; letter-spacing:1px;
+  }
+  .swipe-tag.right{right:18px; color:var(--teal); border-color:var(--teal); transform:rotate(8deg);}
+  .swipe-tag.left{left:18px; color:var(--rust); border-color:var(--rust); transform:rotate(-8deg);}
+
+  .review-controls{
+    display:flex; justify-content:center; gap:22px; margin-top:18px;
+  }
+  .rbtn{
+    width:56px; height:56px; border-radius:50%;
+    border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px; box-shadow:0 4px 10px rgba(31,42,68,0.15);
+  }
+  .rbtn.no{background:var(--white); color:var(--rust); border:2px solid var(--rust);}
+  .rbtn.yes{background:var(--teal); color:var(--white);}
+
+  .session-config{display:flex; gap:10px; align-items:flex-end;}
+  .session-config .field{flex:1;}
+
+  .finish-panel{text-align:center; padding:30px 10px;}
+  .finish-panel .big{font-size:44px;}
+  .finish-panel h2{font-family:'Fraunces', serif;}
+  .stat-grid{display:flex; gap:10px; margin-top:16px;}
+  .stat-box{flex:1; background:var(--paper-dark); border-radius:10px; padding:14px 8px;}
+  .stat-box .num{font-family:'Space Mono'; font-size:22px; font-weight:700;}
+  .stat-box .lbl{font-size:11px; color:var(--ink-soft);}
+
+  /* stats tab */
+  .bigstat{display:flex; gap:10px; margin-bottom:16px;}
+  .bigstat .box{flex:1; background:var(--white); border:1px solid var(--line); border-radius:12px; padding:14px; text-align:center;}
+  .bigstat .box .num{font-family:'Fraunces', serif; font-size:26px; font-weight:700; color:var(--rust);}
+  .bigstat .box .lbl{font-size:11px; color:var(--ink-soft); margin-top:2px;}
+  .leaderrow{display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid var(--paper-dark); font-size:13px;}
+  .toast{
+    position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--paper); padding:10px 18px; border-radius:999px;
+    font-size:13px; z-index:50; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Kelime <span>Kartpostalı</span></h1>
+    <div class="stampbadge" id="headerBadge">0 kelime</div>
+  </header>
+  <main id="main"></main>
+  <nav class="tabs">
+    <button data-tab="words" class="active"><span class="ic">🗂️</span>Kelimelerim</button>
+    <button data-tab="review"><span class="ic">🔁</span>Tekrar</button>
+    <button data-tab="stats"><span class="ic">📊</span>İstatistik</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- storage helpers ---------------- */
+const STORE_KEY = 'words:v1';
+let words = []; // {id,en,tr,img,createdAt,seen,correct,wrong,lastResult}
+let loaded = false;
+
+async function loadWords(){
+  try{
+    const res = await window.storage.get(STORE_KEY, false);
+    words = res ? JSON.parse(res.value) : [];
+  }catch(e){ words = []; }
+  loaded = true;
+}
+async function saveWords(){
+  try{ await window.storage.set(STORE_KEY, JSON.stringify(words), false); }
+  catch(e){ console.error('storage error', e); }
+}
+
+function uid(){ return 'w_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+/* emoji guess dictionary for auto-assigned "photo" when user gives no image */
+const EMOJI_MAP = [
+  [/apple/i,'🍎'],[/banana/i,'🍌'],[/water/i,'💧'],[/fire/i,'🔥'],[/dog/i,'🐶'],[/cat/i,'🐱'],
+  [/book/i,'📕'],[/house|home/i,'🏠'],[/car/i,'🚗'],[/tree/i,'🌳'],[/sun/i,'☀️'],[/moon/i,'🌙'],
+  [/star/i,'⭐'],[/rain/i,'🌧️'],[/love|heart/i,'❤️'],[/music/i,'🎵'],[/food|eat/i,'🍽️'],
+  [/school/i,'🏫'],[/friend/i,'🤝'],[/happy/i,'😊'],[/sad/i,'😢'],[/run/i,'🏃'],[/fly/i,'✈️'],
+  [/bird/i,'🐦'],[/fish/i,'🐟'],[/flower/i,'🌸'],[/mountain/i,'⛰️'],[/sea|ocean/i,'🌊'],
+  [/city/i,'🏙️'],[/travel/i,'🧳'],[/time|clock/i,'⏰'],[/money/i,'💰'],[/work/i,'💼'],
+  [/phone/i,'📱'],[/computer/i,'💻'],[/coffee/i,'☕'],[/tea/i,'🍵'],[/night/i,'🌃'],[/day/i,'🌤️'],
+  [/cold/i,'❄️'],[/hot/i,'🔥'],[/king|queen/i,'👑'],[/child|kid/i,'🧒'],[/animal/i,'🐾']
+];
+function autoEmoji(en){
+  for(const [re,em] of EMOJI_MAP){ if(re.test(en)) return em; }
+  const palette = ['🟠','🟢','🔵','🟣','🟡','🔴','🟤'];
+  let h=0; for(const c of en) h = (h*31 + c.charCodeAt(0))%997;
+  return palette[h % palette.length];
+}
+
+/* ---------------- image handling ---------------- */
+function resizeImageFile(file, maxSize=360){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if(w>h){ if(w>maxSize){ h = h*maxSize/w; w = maxSize; } }
+        else { if(h>maxSize){ w = w*maxSize/h; h = maxSize; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ---------------- toast ---------------- */
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------------- tabs ---------------- */
+let currentTab = 'words';
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentTab = btn.dataset.tab;
+    render();
+  });
+});
+
+function updateHeaderBadge(){
+  document.getElementById('headerBadge').textContent = words.length + ' kelime';
+}
+
+/* ---------------- RENDER: WORDS TAB ---------------- */
+let pendingImg = null; // dataURL for new word form
+
+function renderWordsTab(){
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="card-panel">
+      <div class="section-title">Yeni kelime ekle</div>
+      <label class="field">İngilizce kelime</label>
+      <input type="text" id="inEn" placeholder="örn. apple">
+      <label class="field">Türkçe anlamı</label>
+      <input type="text" id="inTr" placeholder="örn. elma">
+      <div class="photo-row">
+        <div class="photo-preview" id="photoPreview">📷</div>
+        <label class="filebtn">Fotoğraf seç
+          <input type="file" id="inFile" accept="image/*" style="display:none">
+        </label>
+        <button class="filebtn" id="clearPhoto" style="display:none">Kaldır</button>
+      </div>
+      <button class="primary-btn" id="addWordBtn">Kartı ekle</button>
+    </div>
+    <div class="card-panel">
+      <div class="section-title">Kelimelerim (${words.length})</div>
+      <div id="wordList"></div>
+    </div>
+  `;
+
+  const preview = document.getElementById('photoPreview');
+  const fileInput = document.getElementById('inFile');
+  const clearBtn = document.getElementById('clearPhoto');
+  fileInput.addEventListener('change', async ()=>{
+    const f = fileInput.files[0];
+    if(!f) return;
+    const dataUrl = await resizeImageFile(f);
+    pendingImg = dataUrl;
+    preview.innerHTML = `<img src="${dataUrl}">`;
+    clearBtn.style.display = 'inline-block';
+  });
+  clearBtn.addEventListener('click', ()=>{
+    pendingImg = null;
+    preview.innerHTML = '📷';
+    clearBtn.style.display = 'none';
+    fileInput.value = '';
+  });
+
+  document.getElementById('addWordBtn').addEventListener('click', async ()=>{
+    const en = document.getElementById('inEn').value.trim();
+    const tr = document.getElementById('inTr').value.trim();
+    if(!en || !tr){ showToast('Lütfen her iki alanı da doldur'); return; }
+    words.push({
+      id: uid(), en, tr, img: pendingImg,
+      createdAt: Date.now(), seen:0, correct:0, wrong:0, lastResult:null
+    });
+    pendingImg = null;
+    await saveWords();
+    showToast('Kart eklendi ✓');
+    renderWordsTab();
+    updateHeaderBadge();
+  });
+
+  const listEl = document.getElementById('wordList');
+  if(words.length===0){
+    listEl.innerHTML = `<div class="empty"><div class="big">🪄</div>Henüz kelime yok. Yukarıdan ilk kartını ekle!</div>`;
+  } else {
+    listEl.innerHTML = words.slice().reverse().map(w=>`
+      <div class="wordrow">
+        <div class="thumb">${w.img ? `<img src="${w.img}">` : autoEmoji(w.en)}</div>
+        <div class="txt">
+          <div class="en">${escapeHtml(w.en)}</div>
+          <div class="tr">${escapeHtml(w.tr)}</div>
+        </div>
+        <div class="stat">${w.seen} tekrar<br>✓${w.correct} ✕${w.wrong}</div>
+        <button class="del" data-id="${w.id}">✕</button>
+      </div>
+    `).join('');
+    listEl.querySelectorAll('.del').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        words = words.filter(w=>w.id!==btn.dataset.id);
+        await saveWords();
+        renderWordsTab();
+        updateHeaderBadge();
+      });
+    });
+  }
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- RENDER: REVIEW TAB ---------------- */
+let session = null; // {queue:[ids], pos, sessionWords: map id->word snapshot, results:{correct,wrong}, total}
+
+function buildSessionConfigView(){
+  const main = document.getElementById('main');
+  const maxAvail = words.length;
+  const suggested = Math.max(1, Math.min(20, maxAvail));
+  main.innerHTML = `
+    <div class="card-panel">
+      <div class="section-title">Tekrar oturumu başlat</div>
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">
+        10-20 kart arası bir set seçilir. Kartı öğrendiysen <b>sağa</b>, öğrenemediysen <b>sola</b> kaydır —
+        öğrenemediğin kart 3-7 kart sonra tekrar karşına gelir.
+      </p>
+      <label class="field">Kart sayısı (${Math.min(10,maxAvail)}-${Math.min(20,maxAvail)} arası önerilir)</label>
+      <input type="number" id="sessionSize" min="1" max="${maxAvail||1}" value="${suggested}">
+      <button class="primary-btn rust" id="startSessionBtn" ${maxAvail===0?'disabled':''}>Oturumu başlat</button>
+      ${maxAvail===0 ? `<div class="empty"><div class="big">🗂️</div>Önce "Kelimelerim" sekmesinden kart ekle.</div>` : ''}
+    </div>
+  `;
+  if(maxAvail>0){
+    document.getElementById('startSessionBtn').addEventListener('click', ()=>{
+      let n = parseInt(document.getElementById('sessionSize').value) || suggested;
+      n = Math.max(1, Math.min(maxAvail, n));
+      startSession(n);
+    });
+  }
+}
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function startSession(n){
+  const pool = shuffle(words.map(w=>w.id)).slice(0,n);
+  session = {
+    queue: pool,
+    pos: 0,
+    total: n,
+    correctCount: 0,
+    wrongCount: 0,
+    finishedIds: new Set()
+  };
+  renderReviewTab();
+}
+
+function currentSessionCard(){
+  if(!session) return null;
+  if(session.pos >= session.queue.length) return null;
+  const id = session.queue[session.pos];
+  return words.find(w=>w.id===id) || null;
+}
+
+function renderReviewTab(){
+  const main = document.getElementById('main');
+  if(!session){
+    buildSessionConfigView();
+    return;
+  }
+  const card = currentSessionCard();
+  if(!card){
+    // session finished
+    main.innerHTML = `
+      <div class="card-panel finish-panel">
+        <div class="big">🎉</div>
+        <h2>Oturum tamamlandı!</h2>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="num">${session.finishedIds.size}</div><div class="lbl">öğrenilen</div></div>
+          <div class="stat-box"><div class="num">${session.wrongCount}</div><div class="lbl">yanlış geçiş</div></div>
+        </div>
+        <button class="primary-btn teal" id="againBtn">Yeni oturum başlat</button>
+      </div>
+    `;
+    document.getElementById('againBtn').addEventListener('click', ()=>{
+      session = null;
+      renderReviewTab();
+    });
+    return;
+  }
+
+  const doneCount = session.finishedIds.size;
+  const pct = Math.round((doneCount/session.total)*100);
+
+  main.innerHTML = `
+    <div class="progress-bar"><div style="width:${pct}%"></div></div>
+    <div style="font-family:'Space Mono';font-size:11px;color:var(--ink-soft);text-align:center;margin-bottom:10px;">
+      ${doneCount}/${session.total} öğrenildi &middot; kalan kart: ${session.queue.length - session.pos}
+    </div>
+    <div class="deck-wrap">
+      <div class="postcard" id="postcard">
+        <div class="stripe"></div>
+        <div class="imgzone">
+          ${card.img ? `<img src="${card.img}">` : autoEmoji(card.en)}
+          <div class="postmark">${card.seen}x</div>
+        </div>
+        <div class="textzone">
+          <div class="en-word">${escapeHtml(card.en)}</div>
+          <div class="tr-word">${escapeHtml(card.tr)}</div>
+        </div>
+        <div class="swipe-tag right">Öğrendim</div>
+        <div class="swipe-tag left">Tekrar göster</div>
+      </div>
+    </div>
+    <div class="hint" id="flipHint">Anlamını görmek için karta dokun</div>
+    <div class="review-controls">
+      <button class="rbtn no" id="noBtn">✕</button>
+      <button class="rbtn yes" id="yesBtn">✓</button>
+    </div>
+  `;
+
+  const postcardEl = document.getElementById('postcard');
+  postcardEl.addEventListener('click', (e)=>{
+    if(dragMoved) return;
+    postcardEl.classList.toggle('flipped');
+    document.getElementById('flipHint').style.visibility = postcardEl.classList.contains('flipped') ? 'hidden' : 'visible';
+  });
+
+  document.getElementById('yesBtn').addEventListener('click', ()=>resolveCard(true));
+  document.getElementById('noBtn').addEventListener('click', ()=>resolveCard(false));
+
+  attachSwipe(postcardEl);
+}
+
+let dragMoved = false;
+function attachSwipe(el){
+  let startX=0, startY=0, curX=0, dragging=false;
+  dragMoved = false;
+
+  function onDown(x,y){
+    dragging = true; dragMoved = false;
+    startX = x; startY = y; curX = x;
+    el.style.transition = 'none';
+  }
+  function onMove(x,y){
+    if(!dragging) return;
+    curX = x;
+    const dx = x - startX;
+    if(Math.abs(dx) > 6) dragMoved = true;
+    const rot = dx/18;
+    el.style.transform = `translateX(${dx}px) rotate(${rot}deg)`;
+    const rightTag = el.querySelector('.swipe-tag.right');
+    const leftTag = el.querySelector('.swipe-tag.left');
+    const t = Math.min(Math.abs(dx)/100, 1);
+    if(dx>0){ rightTag.style.opacity = t; leftTag.style.opacity = 0; }
+    else { leftTag.style.opacity = t; rightTag.style.opacity = 0; }
+  }
+  function onUp(){
+    if(!dragging) return;
+    dragging = false;
+    const dx = curX - startX;
+    el.style.transition = 'transform .3s ease';
+    if(dx > 90){
+      el.style.transform = `translateX(600px) rotate(20deg)`;
+      setTimeout(()=>resolveCard(true), 180);
+    } else if(dx < -90){
+      el.style.transform = `translateX(-600px) rotate(-20deg)`;
+      setTimeout(()=>resolveCard(false), 180);
+    } else {
+      el.style.transform = '';
+      const rightTag = el.querySelector('.swipe-tag.right');
+      const leftTag = el.querySelector('.swipe-tag.left');
+      if(rightTag) rightTag.style.opacity = 0;
+      if(leftTag) leftTag.style.opacity = 0;
+    }
+  }
+
+  el.addEventListener('pointerdown', e=>{ el.setPointerCapture(e.pointerId); onDown(e.clientX, e.clientY); });
+  el.addEventListener('pointermove', e=>{ onMove(e.clientX, e.clientY); });
+  el.addEventListener('pointerup', e=>{ onUp(); });
+  el.addEventListener('pointercancel', e=>{ onUp(); });
+}
+
+async function resolveCard(learned){
+  const card = currentSessionCard();
+  if(!card || !session) return;
+
+  card.seen += 1;
+  card.lastResult = learned ? 'correct' : 'wrong';
+  if(learned){ card.correct += 1; } else { card.wrong += 1; }
+  await saveWords();
+
+  if(learned){
+    session.finishedIds.add(card.id);
+    session.correctCount += 1;
+    session.pos += 1;
+  } else {
+    session.wrongCount += 1;
+    const gap = 3 + Math.floor(Math.random()*5); // 3..7
+    const insertAt = Math.min(session.queue.length, session.pos + 1 + gap);
+    session.queue.splice(insertAt, 0, card.id);
+    session.pos += 1;
+  }
+  renderReviewTab();
+}
+
+/* ---------------- RENDER: STATS TAB ---------------- */
+function renderStatsTab(){
+  const main = document.getElementById('main');
+  const totalWords = words.length;
+  const totalReviews = words.reduce((s,w)=>s+w.seen,0);
+  const totalCorrect = words.reduce((s,w)=>s+w.correct,0);
+  const totalWrong = words.reduce((s,w)=>s+w.wrong,0);
+  const acc = totalReviews>0 ? Math.round((totalCorrect/(totalCorrect+totalWrong || 1))*100) : 0;
+
+  const hardest = words.filter(w=>w.seen>0).slice().sort((a,b)=> (b.wrong - a.wrong) || (b.seen-a.seen)).slice(0,5);
+
+  main.innerHTML = `
+    <div class="bigstat">
+      <div class="box"><div class="num">${totalWords}</div><div class="lbl">toplam kart</div></div>
+      <div class="box"><div class="num">${totalReviews}</div><div class="lbl">toplam tekrar</div></div>
+      <div class="box"><div class="num">%${acc}</div><div class="lbl">başarı oranı</div></div>
+    </div>
+    <div class="card-panel">
+      <div class="section-title">En çok zorlandığın kelimeler</div>
+      ${hardest.length===0 ? `<div class="empty"><div class="big">📈</div>Henüz tekrar verisi yok. Bir oturum tamamla!</div>` :
+        hardest.map(w=>`
+          <div class="leaderrow">
+            <span>${escapeHtml(w.en)} <span style="color:var(--ink-soft)">— ${escapeHtml(w.tr)}</span></span>
+            <span style="font-family:'Space Mono'">✓${w.correct} ✕${w.wrong}</span>
+          </div>
+        `).join('')
+      }
+    </div>
+  `;
+}
+
+/* ---------------- MASTER RENDER ---------------- */
+function render(){
+  updateHeaderBadge();
+  if(currentTab==='words') renderWordsTab();
+  else if(currentTab==='review') renderReviewTab();
+  else if(currentTab==='stats') renderStatsTab();
+}
+
+/* ---------------- INIT ---------------- */
+(async function init(){
+  await loadWords();
+  render();
+})();
+</script>
+</body>
+</html>
