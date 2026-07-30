@@ -282,6 +282,10 @@
     font-size:13px; z-index:50; opacity:0; pointer-events:none; transition:opacity .25s ease;
   }
   .toast.show{opacity:1;}
+  
+  /* Backup Buttons */
+  .backup-controls { display: flex; gap: 10px; margin-top: 15px; }
+  .backup-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--ink); background: transparent; cursor: pointer; font-family: 'Work Sans'; font-size: 13px; font-weight: 600;}
 </style>
 </head>
 <body>
@@ -300,21 +304,25 @@
 <div class="toast" id="toast"></div>
 
 <script>
-/* ---------------- storage helpers ---------------- */
-const STORE_KEY = 'words:v1';
-let words = []; // {id,en,tr,img,createdAt,seen,correct,wrong,lastResult}
+/* ---------------- storage helpers (localStorage eklendi) ---------------- */
+const STORE_KEY = 'kelimeKartpostali_veriler';
+let words = []; 
 let loaded = false;
 
-async function loadWords(){
+// Verileri LocalStorage'dan Çekme
+function loadWords(){
   try{
-    const res = await window.storage.get(STORE_KEY, false);
-    words = res ? JSON.parse(res.value) : [];
-  }catch(e){ words = []; }
+    const res = localStorage.getItem(STORE_KEY);
+    words = res ? JSON.parse(res) : [];
+  }catch(e){ words = []; console.error('Yükleme hatası:', e); }
   loaded = true;
 }
-async function saveWords(){
-  try{ await window.storage.set(STORE_KEY, JSON.stringify(words), false); }
-  catch(e){ console.error('storage error', e); }
+
+// Verileri LocalStorage'a Kaydetme
+function saveWords(){
+  try{ 
+    localStorage.setItem(STORE_KEY, JSON.stringify(words)); 
+  } catch(e){ console.error('Kaydetme hatası:', e); }
 }
 
 function uid(){ return 'w_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -386,7 +394,7 @@ function updateHeaderBadge(){
 }
 
 /* ---------------- RENDER: WORDS TAB ---------------- */
-let pendingImg = null; // dataURL for new word form
+let pendingImg = null; 
 
 function renderWordsTab(){
   const main = document.getElementById('main');
@@ -415,22 +423,28 @@ function renderWordsTab(){
   const preview = document.getElementById('photoPreview');
   const fileInput = document.getElementById('inFile');
   const clearBtn = document.getElementById('clearPhoto');
-  fileInput.addEventListener('change', async ()=>{
-    const f = fileInput.files[0];
-    if(!f) return;
-    const dataUrl = await resizeImageFile(f);
-    pendingImg = dataUrl;
-    preview.innerHTML = `<img src="${dataUrl}">`;
-    clearBtn.style.display = 'inline-block';
-  });
-  clearBtn.addEventListener('click', ()=>{
-    pendingImg = null;
-    preview.innerHTML = '📷';
-    clearBtn.style.display = 'none';
-    fileInput.value = '';
-  });
+  
+  if (fileInput) {
+      fileInput.addEventListener('change', async ()=>{
+        const f = fileInput.files[0];
+        if(!f) return;
+        const dataUrl = await resizeImageFile(f);
+        pendingImg = dataUrl;
+        preview.innerHTML = `<img src="${dataUrl}">`;
+        clearBtn.style.display = 'inline-block';
+      });
+  }
+  
+  if (clearBtn) {
+      clearBtn.addEventListener('click', ()=>{
+        pendingImg = null;
+        preview.innerHTML = '📷';
+        clearBtn.style.display = 'none';
+        fileInput.value = '';
+      });
+  }
 
-  document.getElementById('addWordBtn').addEventListener('click', async ()=>{
+  document.getElementById('addWordBtn').addEventListener('click', ()=>{
     const en = document.getElementById('inEn').value.trim();
     const tr = document.getElementById('inTr').value.trim();
     if(!en || !tr){ showToast('Lütfen her iki alanı da doldur'); return; }
@@ -439,7 +453,7 @@ function renderWordsTab(){
       createdAt: Date.now(), seen:0, correct:0, wrong:0, lastResult:null
     });
     pendingImg = null;
-    await saveWords();
+    saveWords(); // Veriyi Kaydet
     showToast('Kart eklendi ✓');
     renderWordsTab();
     updateHeaderBadge();
@@ -460,10 +474,11 @@ function renderWordsTab(){
         <button class="del" data-id="${w.id}">✕</button>
       </div>
     `).join('');
+    
     listEl.querySelectorAll('.del').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
+      btn.addEventListener('click', ()=>{
         words = words.filter(w=>w.id!==btn.dataset.id);
-        await saveWords();
+        saveWords(); // Silinince Güncelle
         renderWordsTab();
         updateHeaderBadge();
       });
@@ -476,7 +491,7 @@ function escapeHtml(s){
 }
 
 /* ---------------- RENDER: REVIEW TAB ---------------- */
-let session = null; // {queue:[ids], pos, sessionWords: map id->word snapshot, results:{correct,wrong}, total}
+let session = null; 
 
 function buildSessionConfigView(){
   const main = document.getElementById('main');
@@ -652,14 +667,15 @@ function attachSwipe(el){
   el.addEventListener('pointercancel', e=>{ onUp(); });
 }
 
-async function resolveCard(learned){
+function resolveCard(learned){
   const card = currentSessionCard();
   if(!card || !session) return;
 
   card.seen += 1;
   card.lastResult = learned ? 'correct' : 'wrong';
   if(learned){ card.correct += 1; } else { card.wrong += 1; }
-  await saveWords();
+  
+  saveWords(); // Kart Durumunu Kaydet
 
   if(learned){
     session.finishedIds.add(card.id);
@@ -703,7 +719,62 @@ function renderStatsTab(){
         `).join('')
       }
     </div>
+    
+    <!-- Yedekleme Alanı -->
+    <div class="card-panel">
+      <div class="section-title">Verileri Yedekle</div>
+      <p style="font-size:12px;color:var(--ink-soft);margin-top:-6px;">
+        Kelimelerin sadece bu cihazda kayıtlı. Başka bir cihaza taşımak veya verilerini güvende tutmak için yedekleyebilirsin.
+      </p>
+      <div class="backup-controls">
+          <button class="backup-btn" id="exportBtn">⬇️ Dışa Aktar</button>
+          <label class="backup-btn" style="text-align:center;">
+             ⬆️ İçe Aktar
+             <input type="file" id="importFile" accept=".json" style="display:none">
+          </label>
+      </div>
+    </div>
   `;
+  
+  // Dışa Aktar Fonksiyonu
+  document.getElementById('exportBtn').addEventListener('click', ()=>{
+      if(words.length === 0) {
+          showToast("Yedeklenecek kelime yok!");
+          return;
+      }
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(words));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href",     dataStr);
+      downloadAnchorNode.setAttribute("download", "kelime_kartpostali_yedek.json");
+      document.body.appendChild(downloadAnchorNode); // Firefox için gerekli
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      showToast("Yedek indirildi ✓");
+  });
+  
+  // İçe Aktar Fonksiyonu
+  document.getElementById('importFile').addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedWords = JSON.parse(e.target.result);
+                if (Array.isArray(importedWords)) {
+                    words = importedWords;
+                    saveWords(); // Yeni veriyi kaydet
+                    showToast("Veriler başarıyla içe aktarıldı ✓");
+                    renderStatsTab(); // Sayfayı yenile
+                } else {
+                    showToast("Geçersiz yedek dosyası!");
+                }
+            } catch (err) {
+                showToast("Dosya okuma hatası!");
+            }
+        };
+        reader.readAsText(file);
+    }
+  });
 }
 
 /* ---------------- MASTER RENDER ---------------- */
@@ -715,8 +786,8 @@ function render(){
 }
 
 /* ---------------- INIT ---------------- */
-(async function init(){
-  await loadWords();
+(function init(){
+  loadWords(); // Sayfa Yüklendiğinde Verileri Çek
   render();
 })();
 </script>
