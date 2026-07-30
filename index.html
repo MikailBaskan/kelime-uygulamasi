@@ -212,8 +212,15 @@
     display:flex; align-items:center; justify-content:center;
     font-size:70px;
     position:relative;
+    padding: 16px; /* Resme nefes alma payı */
   }
-  .postcard .imgzone img{width:100%; height:100%; object-fit:cover;}
+  .postcard .imgzone img{
+    max-width: 100%; 
+    max-height: 180px; /* Resmin çok büyümesini engeller */
+    object-fit: contain; /* Resmin kırpılmasını önler */
+    border-radius: 8px; /* Şık görünüm için kenarları ovalleştirir */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
   .postmark{
     position:absolute; top:10px; right:10px;
     width:44px; height:44px; border-radius:50%;
@@ -226,12 +233,13 @@
     padding:16px 18px 20px;
     border-top:1px dashed var(--line);
     text-align:center;
+    background: var(--white);
   }
   .postcard .en-word{
-    font-family:'Fraunces', serif; font-weight:700; font-size:28px;
+    font-family:'Fraunces', serif; font-weight:700; font-size:24px;
   }
   .postcard .tr-word{
-    margin-top:4px; font-size:14px; color:var(--ink-soft);
+    margin-top:8px; font-size:18px; font-weight:600; color:var(--rust);
     opacity:0; transition:opacity .2s ease;
   }
   .postcard.flipped .tr-word{opacity:1;}
@@ -453,7 +461,7 @@ function renderWordsTab(){
       createdAt: Date.now(), seen:0, correct:0, wrong:0, lastResult:null
     });
     pendingImg = null;
-    saveWords(); // Veriyi Kaydet
+    saveWords(); 
     showToast('Kart eklendi ✓');
     renderWordsTab();
     updateHeaderBadge();
@@ -478,7 +486,7 @@ function renderWordsTab(){
     listEl.querySelectorAll('.del').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         words = words.filter(w=>w.id!==btn.dataset.id);
-        saveWords(); // Silinince Güncelle
+        saveWords(); 
         renderWordsTab();
         updateHeaderBadge();
       });
@@ -501,8 +509,7 @@ function buildSessionConfigView(){
     <div class="card-panel">
       <div class="section-title">Tekrar oturumu başlat</div>
       <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">
-        10-20 kart arası bir set seçilir. Kartı öğrendiysen <b>sağa</b>, öğrenemediysen <b>sola</b> kaydır —
-        öğrenemediğin kart 3-7 kart sonra tekrar karşına gelir.
+        10-20 kart arası bir set seçilir. Kartı öğrendiysen <b>sağa</b>, öğrenemediysen <b>sola</b> kaydır.
       </p>
       <label class="field">Kart sayısı (${Math.min(10,maxAvail)}-${Math.min(20,maxAvail)} arası önerilir)</label>
       <input type="number" id="sessionSize" min="1" max="${maxAvail||1}" value="${suggested}">
@@ -529,7 +536,11 @@ function shuffle(arr){
 }
 
 function startSession(n){
-  const pool = shuffle(words.map(w=>w.id)).slice(0,n);
+  // Her kart için %50 ihtimalle ters (Türkçe sorup İngilizce bekleme) kuralı ekliyoruz
+  const pool = shuffle(words.map(w=>w.id)).slice(0,n).map(id => ({
+    id: id,
+    reverse: Math.random() > 0.5 
+  }));
   session = {
     queue: pool,
     pos: 0,
@@ -544,8 +555,10 @@ function startSession(n){
 function currentSessionCard(){
   if(!session) return null;
   if(session.pos >= session.queue.length) return null;
-  const id = session.queue[session.pos];
-  return words.find(w=>w.id===id) || null;
+  const qItem = session.queue[session.pos];
+  const c = words.find(w=>w.id===qItem.id);
+  // Kartın orijinalini bozmamak için kopyasını oluşturup kura (reverse) bilgisini içine ekliyoruz
+  return c ? { ...c, _reverse: qItem.reverse } : null;
 }
 
 function renderReviewTab(){
@@ -556,7 +569,6 @@ function renderReviewTab(){
   }
   const card = currentSessionCard();
   if(!card){
-    // session finished
     main.innerHTML = `
       <div class="card-panel finish-panel">
         <div class="big">🎉</div>
@@ -577,6 +589,11 @@ function renderReviewTab(){
 
   const doneCount = session.finishedIds.size;
   const pct = Math.round((doneCount/session.total)*100);
+  
+  // Ters mi Düz mü? Ona göre soru ve cevap metinlerini ayarlıyoruz
+  const qText = card._reverse ? card.tr : card.en;
+  const aText = card._reverse ? card.en : card.tr;
+  const hintText = card._reverse ? "İngilizcesini görmek için dokun" : "Türkçesini görmek için dokun";
 
   main.innerHTML = `
     <div class="progress-bar"><div style="width:${pct}%"></div></div>
@@ -591,14 +608,14 @@ function renderReviewTab(){
           <div class="postmark">${card.seen}x</div>
         </div>
         <div class="textzone">
-          <div class="en-word">${escapeHtml(card.en)}</div>
-          <div class="tr-word">${escapeHtml(card.tr)}</div>
+          <div class="en-word">${escapeHtml(qText)}</div>
+          <div class="tr-word">${escapeHtml(aText)}</div>
         </div>
         <div class="swipe-tag right">Öğrendim</div>
         <div class="swipe-tag left">Tekrar göster</div>
       </div>
     </div>
-    <div class="hint" id="flipHint">Anlamını görmek için karta dokun</div>
+    <div class="hint" id="flipHint">${hintText}</div>
     <div class="review-controls">
       <button class="rbtn no" id="noBtn">✕</button>
       <button class="rbtn yes" id="yesBtn">✓</button>
@@ -668,24 +685,28 @@ function attachSwipe(el){
 }
 
 function resolveCard(learned){
-  const card = currentSessionCard();
-  if(!card || !session) return;
+  const cardState = currentSessionCard();
+  if(!cardState || !session) return;
 
-  card.seen += 1;
-  card.lastResult = learned ? 'correct' : 'wrong';
-  if(learned){ card.correct += 1; } else { card.wrong += 1; }
+  const actualCard = words.find(w => w.id === cardState.id);
+  if(!actualCard) return;
+
+  actualCard.seen += 1;
+  actualCard.lastResult = learned ? 'correct' : 'wrong';
+  if(learned){ actualCard.correct += 1; } else { actualCard.wrong += 1; }
   
-  saveWords(); // Kart Durumunu Kaydet
+  saveWords(); 
 
   if(learned){
-    session.finishedIds.add(card.id);
+    session.finishedIds.add(actualCard.id);
     session.correctCount += 1;
     session.pos += 1;
   } else {
     session.wrongCount += 1;
     const gap = 3 + Math.floor(Math.random()*5); // 3..7
     const insertAt = Math.min(session.queue.length, session.pos + 1 + gap);
-    session.queue.splice(insertAt, 0, card.id);
+    // Yanlış bilinen kart tekrar kura çekilerek kuyruğa eklenir
+    session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: Math.random() > 0.5 });
     session.pos += 1;
   }
   renderReviewTab();
@@ -720,7 +741,6 @@ function renderStatsTab(){
       }
     </div>
     
-    <!-- Yedekleme Alanı -->
     <div class="card-panel">
       <div class="section-title">Verileri Yedekle</div>
       <p style="font-size:12px;color:var(--ink-soft);margin-top:-6px;">
@@ -736,7 +756,6 @@ function renderStatsTab(){
     </div>
   `;
   
-  // Dışa Aktar Fonksiyonu
   document.getElementById('exportBtn').addEventListener('click', ()=>{
       if(words.length === 0) {
           showToast("Yedeklenecek kelime yok!");
@@ -746,13 +765,12 @@ function renderStatsTab(){
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute("href",     dataStr);
       downloadAnchorNode.setAttribute("download", "kelime_kartpostali_yedek.json");
-      document.body.appendChild(downloadAnchorNode); // Firefox için gerekli
+      document.body.appendChild(downloadAnchorNode); 
       downloadAnchorNode.click();
       downloadAnchorNode.remove();
       showToast("Yedek indirildi ✓");
   });
   
-  // İçe Aktar Fonksiyonu
   document.getElementById('importFile').addEventListener('change', function(event) {
     const file = event.target.files[0];
     if (file) {
@@ -762,9 +780,9 @@ function renderStatsTab(){
                 const importedWords = JSON.parse(e.target.result);
                 if (Array.isArray(importedWords)) {
                     words = importedWords;
-                    saveWords(); // Yeni veriyi kaydet
+                    saveWords(); 
                     showToast("Veriler başarıyla içe aktarıldı ✓");
-                    renderStatsTab(); // Sayfayı yenile
+                    renderStatsTab(); 
                 } else {
                     showToast("Geçersiz yedek dosyası!");
                 }
@@ -787,7 +805,7 @@ function render(){
 
 /* ---------------- INIT ---------------- */
 (function init(){
-  loadWords(); // Sayfa Yüklendiğinde Verileri Çek
+  loadWords(); 
   render();
 })();
 </script>
