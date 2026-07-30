@@ -558,6 +558,15 @@ function renderWordsTab(){
     const en = document.getElementById('inEn').value.trim();
     const tr = document.getElementById('inTr').value.trim();
     if(!en || !tr){ showToast('Lütfen her iki alanı da doldur'); return; }
+
+    // Eşleşen kelimeyi kontrol et (Büyük/küçük harfe duyarsız)
+    const existingWord = words.find(w => w.en.toLowerCase() === en.toLowerCase());
+    if(existingWord) {
+        showToast('Bu kelime zaten var!');
+        openEditModal(existingWord.id); // Var olan kelimenin düzenleme ekranını aç
+        return;
+    }
+
     words.push({
       id: uid(), en, tr, img: pendingImg,
       createdAt: Date.now(), seen:0, correct:0, wrong:0, lastResult:null
@@ -674,7 +683,6 @@ function renderReviewTab(){
   }
   const card = currentSessionCard();
   
-  // Eğer oturumdaki tüm unique kartlar bittiyse (Tam öğrenildi ile), bitir.
   if(session.finishedIds.size >= session.totalUnique || !card) {
     main.innerHTML = `
       <div class="card-panel finish-panel">
@@ -767,7 +775,6 @@ function attachSwipe(el){
     tagNotLearned.style.opacity = 0;
     tagFully.style.opacity = 0;
 
-    // Eğer aşağı çekiliyorsa (Dikey hareket daha baskınsa ve yön aşağıysa)
     if(dy > 30 && Math.abs(dy) > Math.abs(dx)) {
         el.style.transform = `translateY(${dy}px) rotate(${dx/30}deg)`;
         tagFully.style.opacity = Math.min(dy/100, 1);
@@ -817,21 +824,18 @@ window.resolveCard = function(action){
   actualCard.seen += 1;
   
   if(action === 'down') {
-    // TAM ÖĞRENİLDİ
     actualCard.correct += 1;
     actualCard.lastResult = 'correct';
     session.finishedIds.add(actualCard.id);
     session.correctCount += 1;
   } 
   else if (action === 'right') {
-    // ÖĞRENİLDİ (10 kart sonra tekrar sor)
     actualCard.correct += 1;
     actualCard.lastResult = 'correct';
     const insertAt = Math.min(session.queue.length, session.pos + 1 + 10);
     session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: Math.random() > 0.5 });
   } 
   else if (action === 'left') {
-    // ÖĞRENİLMEDİ (5 kart sonra tekrar sor)
     actualCard.wrong += 1;
     actualCard.lastResult = 'wrong';
     session.wrongCount += 1;
