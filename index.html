@@ -154,12 +154,15 @@
   .primary-btn:active{transform:translateY(1px);}
   .primary-btn.rust{background:var(--rust);}
   .primary-btn.teal{background:var(--teal);}
+  .primary-btn.outline{background:transparent; color:var(--ink); border:1px solid var(--ink);}
 
   .wordrow{
     display:flex; align-items:center; gap:12px;
     padding:10px 4px;
     border-bottom:1px solid var(--paper-dark);
+    cursor:pointer;
   }
+  .wordrow:active{background:var(--paper);}
   .wordrow:last-child{border-bottom:none;}
   .wordrow .thumb{
     width:44px; height:44px; border-radius:8px; overflow:hidden;
@@ -172,7 +175,7 @@
   .wordrow .tr{font-size:12px; color:var(--ink-soft);}
   .wordrow .stat{font-family:'Space Mono'; font-size:10px; color:var(--ink-soft); text-align:right;}
   .wordrow .del{
-    border:none; background:none; color:var(--rust); font-size:16px; cursor:pointer; padding:6px;
+    border:none; background:none; color:var(--rust); font-size:16px; cursor:pointer; padding:12px 6px;
   }
   .empty{
     text-align:center; padding:40px 10px; color:var(--ink-soft);
@@ -212,13 +215,13 @@
     display:flex; align-items:center; justify-content:center;
     font-size:70px;
     position:relative;
-    padding: 16px; /* Resme nefes alma payı */
+    padding: 16px;
   }
   .postcard .imgzone img{
     max-width: 100%; 
-    max-height: 180px; /* Resmin çok büyümesini engeller */
-    object-fit: contain; /* Resmin kırpılmasını önler */
-    border-radius: 8px; /* Şık görünüm için kenarları ovalleştirir */
+    max-height: 180px; 
+    object-fit: contain; 
+    border-radius: 8px; 
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   }
   .postmark{
@@ -246,26 +249,30 @@
   .hint{
     text-align:center; font-size:11px; color:var(--ink-soft); margin-top:6px;
   }
+  
+  /* Yeni Swipe Tagleri */
   .swipe-tag{
-    position:absolute; top:22px; padding:6px 12px;
+    position:absolute; padding:6px 12px;
     font-family:'Space Mono'; font-weight:700; font-size:13px;
     border-radius:6px; border:2px solid; opacity:0;
-    text-transform:uppercase; letter-spacing:1px;
+    text-transform:uppercase; letter-spacing:1px; z-index: 10;
   }
-  .swipe-tag.right{right:18px; color:var(--teal); border-color:var(--teal); transform:rotate(8deg);}
-  .swipe-tag.left{left:18px; color:var(--rust); border-color:var(--rust); transform:rotate(-8deg);}
+  .swipe-tag.learned { top: 22px; left: 18px; color: var(--teal); border-color: var(--teal); transform: rotate(-8deg); background: rgba(255,255,255,0.9); }
+  .swipe-tag.not-learned { top: 22px; right: 18px; color: var(--rust); border-color: var(--rust); transform: rotate(8deg); background: rgba(255,255,255,0.9); }
+  .swipe-tag.fully-learned { top: 15px; left: 50%; transform: translateX(-50%); color: var(--ink); border-color: var(--ink); background: var(--white); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 
   .review-controls{
-    display:flex; justify-content:center; gap:22px; margin-top:18px;
+    display:flex; justify-content:center; gap:10px; margin-top:18px;
   }
-  .rbtn{
-    width:56px; height:56px; border-radius:50%;
-    border:none; cursor:pointer;
-    display:flex; align-items:center; justify-content:center;
-    font-size:22px; box-shadow:0 4px 10px rgba(31,42,68,0.15);
+  .act-btn{
+    flex: 1; border-radius:8px; border:none; cursor:pointer;
+    padding: 12px 6px; font-family:'Work Sans'; font-size:12px; font-weight:600;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    box-shadow:0 4px 10px rgba(31,42,68,0.1);
   }
-  .rbtn.no{background:var(--white); color:var(--rust); border:2px solid var(--rust);}
-  .rbtn.yes{background:var(--teal); color:var(--white);}
+  .act-btn.bad{background:var(--white); color:var(--rust); border:1px solid var(--rust);}
+  .act-btn.good{background:var(--teal); color:var(--white);}
+  .act-btn.perfect{background:var(--ink); color:var(--white);}
 
   .session-config{display:flex; gap:10px; align-items:flex-end;}
   .session-config .field{flex:1;}
@@ -284,6 +291,7 @@
   .bigstat .box .num{font-family:'Fraunces', serif; font-size:26px; font-weight:700; color:var(--rust);}
   .bigstat .box .lbl{font-size:11px; color:var(--ink-soft); margin-top:2px;}
   .leaderrow{display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid var(--paper-dark); font-size:13px;}
+  
   .toast{
     position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
     background:var(--ink); color:var(--paper); padding:10px 18px; border-radius:999px;
@@ -291,9 +299,21 @@
   }
   .toast.show{opacity:1;}
   
-  /* Backup Buttons */
   .backup-controls { display: flex; gap: 10px; margin-top: 15px; }
   .backup-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--ink); background: transparent; cursor: pointer; font-family: 'Work Sans'; font-size: 13px; font-weight: 600;}
+
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(31, 42, 68, 0.6); z-index: 100;
+    display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  .modal-overlay.active { display: flex; }
+  .modal-content {
+    background: var(--white); width: 90%; max-width: 400px;
+    border-radius: 16px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
 </style>
 </head>
 <body>
@@ -309,15 +329,37 @@
     <button data-tab="stats"><span class="ic">📊</span>İstatistik</button>
   </nav>
 </div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-content">
+    <div class="section-title">Kartı Düzenle</div>
+    <label class="field">İngilizce kelime</label>
+    <input type="text" id="editEn">
+    <label class="field">Türkçe anlamı</label>
+    <input type="text" id="editTr">
+    <div class="photo-row">
+      <div class="photo-preview" id="editPhotoPreview">📷</div>
+      <label class="filebtn">Yeni Fotoğraf
+        <input type="file" id="editFile" accept="image/*" style="display:none">
+      </label>
+      <button class="filebtn" id="editClearPhoto" style="display:none">Kaldır</button>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      <button class="primary-btn outline" id="closeEditBtn" style="margin-top:0;">İptal</button>
+      <button class="primary-btn teal" id="saveEditBtn" style="margin-top:0;">Güncelle</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
-/* ---------------- storage helpers (localStorage eklendi) ---------------- */
+/* ---------------- storage helpers ---------------- */
 const STORE_KEY = 'kelimeKartpostali_veriler';
 let words = []; 
 let loaded = false;
 
-// Verileri LocalStorage'dan Çekme
 function loadWords(){
   try{
     const res = localStorage.getItem(STORE_KEY);
@@ -326,7 +368,6 @@ function loadWords(){
   loaded = true;
 }
 
-// Verileri LocalStorage'a Kaydetme
 function saveWords(){
   try{ 
     localStorage.setItem(STORE_KEY, JSON.stringify(words)); 
@@ -335,7 +376,6 @@ function saveWords(){
 
 function uid(){ return 'w_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
-/* emoji guess dictionary for auto-assigned "photo" when user gives no image */
 const EMOJI_MAP = [
   [/apple/i,'🍎'],[/banana/i,'🍌'],[/water/i,'💧'],[/fire/i,'🔥'],[/dog/i,'🐶'],[/cat/i,'🐱'],
   [/book/i,'📕'],[/house|home/i,'🏠'],[/car/i,'🚗'],[/tree/i,'🌳'],[/sun/i,'☀️'],[/moon/i,'🌙'],
@@ -353,7 +393,6 @@ function autoEmoji(en){
   return palette[h % palette.length];
 }
 
-/* ---------------- image handling ---------------- */
 function resizeImageFile(file, maxSize=360){
   return new Promise((resolve,reject)=>{
     const reader = new FileReader();
@@ -376,7 +415,6 @@ function resizeImageFile(file, maxSize=360){
   });
 }
 
-/* ---------------- toast ---------------- */
 let toastTimer;
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -386,7 +424,6 @@ function showToast(msg){
   toastTimer = setTimeout(()=>t.classList.remove('show'), 1800);
 }
 
-/* ---------------- tabs ---------------- */
 let currentTab = 'words';
 document.querySelectorAll('nav.tabs button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -399,6 +436,71 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
 
 function updateHeaderBadge(){
   document.getElementById('headerBadge').textContent = words.length + ' kelime';
+}
+
+/* ---------------- EDIT MODAL LOGIC ---------------- */
+let editingWordId = null;
+let editPendingImg = null;
+
+document.getElementById('closeEditBtn').addEventListener('click', () => {
+  document.getElementById('editModal').classList.remove('active');
+});
+
+document.getElementById('editFile').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if(!f) return;
+  editPendingImg = await resizeImageFile(f);
+  document.getElementById('editPhotoPreview').innerHTML = `<img src="${editPendingImg}">`;
+  document.getElementById('editClearPhoto').style.display = 'inline-block';
+});
+
+document.getElementById('editClearPhoto').addEventListener('click', () => {
+  editPendingImg = null;
+  document.getElementById('editPhotoPreview').innerHTML = '📷';
+  document.getElementById('editClearPhoto').style.display = 'none';
+  document.getElementById('editFile').value = '';
+});
+
+document.getElementById('saveEditBtn').addEventListener('click', () => {
+  if(!editingWordId) return;
+  const en = document.getElementById('editEn').value.trim();
+  const tr = document.getElementById('editTr').value.trim();
+  if(!en || !tr) { showToast('Alanlar boş bırakılamaz!'); return; }
+  
+  const wordIndex = words.findIndex(w => w.id === editingWordId);
+  if(wordIndex !== -1) {
+    words[wordIndex].en = en;
+    words[wordIndex].tr = tr;
+    words[wordIndex].img = editPendingImg;
+    saveWords();
+    showToast('Kart güncellendi ✓');
+    renderWordsTab();
+  }
+  document.getElementById('editModal').classList.remove('active');
+});
+
+function openEditModal(id) {
+  const word = words.find(w => w.id === id);
+  if(!word) return;
+  editingWordId = id;
+  editPendingImg = word.img;
+  
+  document.getElementById('editEn').value = word.en;
+  document.getElementById('editTr').value = word.tr;
+  
+  const preview = document.getElementById('editPhotoPreview');
+  const clearBtn = document.getElementById('editClearPhoto');
+  
+  if(word.img) {
+    preview.innerHTML = `<img src="${word.img}">`;
+    clearBtn.style.display = 'inline-block';
+  } else {
+    preview.innerHTML = '📷';
+    clearBtn.style.display = 'none';
+  }
+  
+  document.getElementById('editFile').value = '';
+  document.getElementById('editModal').classList.add('active');
 }
 
 /* ---------------- RENDER: WORDS TAB ---------------- */
@@ -423,7 +525,7 @@ function renderWordsTab(){
       <button class="primary-btn" id="addWordBtn">Kartı ekle</button>
     </div>
     <div class="card-panel">
-      <div class="section-title">Kelimelerim (${words.length})</div>
+      <div class="section-title">Kelimelerim (${words.length}) <span style="font-size:11px; font-weight:normal; color:var(--ink-soft); float:right; margin-top:6px;">Düzenlemek için karta tıkla</span></div>
       <div id="wordList"></div>
     </div>
   `;
@@ -472,7 +574,7 @@ function renderWordsTab(){
     listEl.innerHTML = `<div class="empty"><div class="big">🪄</div>Henüz kelime yok. Yukarıdan ilk kartını ekle!</div>`;
   } else {
     listEl.innerHTML = words.slice().reverse().map(w=>`
-      <div class="wordrow">
+      <div class="wordrow" onclick="openEditModal('${w.id}')">
         <div class="thumb">${w.img ? `<img src="${w.img}">` : autoEmoji(w.en)}</div>
         <div class="txt">
           <div class="en">${escapeHtml(w.en)}</div>
@@ -484,11 +586,14 @@ function renderWordsTab(){
     `).join('');
     
     listEl.querySelectorAll('.del').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        words = words.filter(w=>w.id!==btn.dataset.id);
-        saveWords(); 
-        renderWordsTab();
-        updateHeaderBadge();
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation(); // Silme butonuna basıldığında düzenleme penceresi açılmasın
+        if(confirm("Bu kelimeyi silmek istediğine emin misin?")) {
+            words = words.filter(w=>w.id!==btn.dataset.id);
+            saveWords(); 
+            renderWordsTab();
+            updateHeaderBadge();
+        }
       });
     });
   }
@@ -509,7 +614,9 @@ function buildSessionConfigView(){
     <div class="card-panel">
       <div class="section-title">Tekrar oturumu başlat</div>
       <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">
-        10-20 kart arası bir set seçilir. Kartı öğrendiysen <b>sağa</b>, öğrenemediysen <b>sola</b> kaydır.
+        👈 <b>Sola:</b> Öğrenilmedi (5 kart sonra gelir)<br>
+        👉 <b>Sağa:</b> Öğrenildi (10 kart sonra gelir)<br>
+        👇 <b>Aşağı:</b> Tam Öğrenildi (Oturum bitene kadar gelmez)
       </p>
       <label class="field">Kart sayısı (${Math.min(10,maxAvail)}-${Math.min(20,maxAvail)} arası önerilir)</label>
       <input type="number" id="sessionSize" min="1" max="${maxAvail||1}" value="${suggested}">
@@ -536,7 +643,6 @@ function shuffle(arr){
 }
 
 function startSession(n){
-  // Her kart için %50 ihtimalle ters (Türkçe sorup İngilizce bekleme) kuralı ekliyoruz
   const pool = shuffle(words.map(w=>w.id)).slice(0,n).map(id => ({
     id: id,
     reverse: Math.random() > 0.5 
@@ -544,7 +650,7 @@ function startSession(n){
   session = {
     queue: pool,
     pos: 0,
-    total: n,
+    totalUnique: n,
     correctCount: 0,
     wrongCount: 0,
     finishedIds: new Set()
@@ -557,7 +663,6 @@ function currentSessionCard(){
   if(session.pos >= session.queue.length) return null;
   const qItem = session.queue[session.pos];
   const c = words.find(w=>w.id===qItem.id);
-  // Kartın orijinalini bozmamak için kopyasını oluşturup kura (reverse) bilgisini içine ekliyoruz
   return c ? { ...c, _reverse: qItem.reverse } : null;
 }
 
@@ -568,14 +673,17 @@ function renderReviewTab(){
     return;
   }
   const card = currentSessionCard();
-  if(!card){
+  
+  // Eğer oturumdaki tüm unique kartlar bittiyse (Tam öğrenildi ile), bitir.
+  if(session.finishedIds.size >= session.totalUnique || !card) {
     main.innerHTML = `
       <div class="card-panel finish-panel">
         <div class="big">🎉</div>
         <h2>Oturum tamamlandı!</h2>
+        <p style="font-size:13px; color:var(--ink-soft);">Tüm kartlar başarıyla 'Tam Öğrenildi' olarak işaretlendi.</p>
         <div class="stat-grid">
           <div class="stat-box"><div class="num">${session.finishedIds.size}</div><div class="lbl">öğrenilen</div></div>
-          <div class="stat-box"><div class="num">${session.wrongCount}</div><div class="lbl">yanlış geçiş</div></div>
+          <div class="stat-box"><div class="num">${session.wrongCount}</div><div class="lbl">hata (öğrenilmedi)</div></div>
         </div>
         <button class="primary-btn teal" id="againBtn">Yeni oturum başlat</button>
       </div>
@@ -588,9 +696,8 @@ function renderReviewTab(){
   }
 
   const doneCount = session.finishedIds.size;
-  const pct = Math.round((doneCount/session.total)*100);
+  const pct = Math.round((doneCount / session.totalUnique) * 100);
   
-  // Ters mi Düz mü? Ona göre soru ve cevap metinlerini ayarlıyoruz
   const qText = card._reverse ? card.tr : card.en;
   const aText = card._reverse ? card.en : card.tr;
   const hintText = card._reverse ? "İngilizcesini görmek için dokun" : "Türkçesini görmek için dokun";
@@ -598,7 +705,7 @@ function renderReviewTab(){
   main.innerHTML = `
     <div class="progress-bar"><div style="width:${pct}%"></div></div>
     <div style="font-family:'Space Mono';font-size:11px;color:var(--ink-soft);text-align:center;margin-bottom:10px;">
-      ${doneCount}/${session.total} öğrenildi &middot; kalan kart: ${session.queue.length - session.pos}
+      İlerleme: ${doneCount}/${session.totalUnique} &middot; Kuyruktaki Kart: ${session.queue.length - session.pos}
     </div>
     <div class="deck-wrap">
       <div class="postcard" id="postcard">
@@ -611,14 +718,16 @@ function renderReviewTab(){
           <div class="en-word">${escapeHtml(qText)}</div>
           <div class="tr-word">${escapeHtml(aText)}</div>
         </div>
-        <div class="swipe-tag right">Öğrendim</div>
-        <div class="swipe-tag left">Tekrar göster</div>
+        <div class="swipe-tag not-learned">ÖĞRENİLMEDİ</div>
+        <div class="swipe-tag fully-learned">TAM ÖĞRENİLDİ</div>
+        <div class="swipe-tag learned">ÖĞRENİLDİ</div>
       </div>
     </div>
     <div class="hint" id="flipHint">${hintText}</div>
     <div class="review-controls">
-      <button class="rbtn no" id="noBtn">✕</button>
-      <button class="rbtn yes" id="yesBtn">✓</button>
+      <button class="act-btn bad" onclick="resolveCard('left')"><span style="font-size:16px;">👈</span>Öğrenilmedi</button>
+      <button class="act-btn perfect" onclick="resolveCard('down')"><span style="font-size:16px;">👇</span>Tam Öğrenildi</button>
+      <button class="act-btn good" onclick="resolveCard('right')"><span style="font-size:16px;">👉</span>Öğrenildi</button>
     </div>
   `;
 
@@ -629,52 +738,66 @@ function renderReviewTab(){
     document.getElementById('flipHint').style.visibility = postcardEl.classList.contains('flipped') ? 'hidden' : 'visible';
   });
 
-  document.getElementById('yesBtn').addEventListener('click', ()=>resolveCard(true));
-  document.getElementById('noBtn').addEventListener('click', ()=>resolveCard(false));
-
   attachSwipe(postcardEl);
 }
 
 let dragMoved = false;
 function attachSwipe(el){
-  let startX=0, startY=0, curX=0, dragging=false;
+  let startX=0, startY=0, curX=0, curY=0, dragging=false;
   dragMoved = false;
 
   function onDown(x,y){
     dragging = true; dragMoved = false;
-    startX = x; startY = y; curX = x;
+    startX = x; startY = y; curX = x; curY = y;
     el.style.transition = 'none';
   }
+  
   function onMove(x,y){
     if(!dragging) return;
-    curX = x;
+    curX = x; curY = y;
     const dx = x - startX;
-    if(Math.abs(dx) > 6) dragMoved = true;
-    const rot = dx/18;
-    el.style.transform = `translateX(${dx}px) rotate(${rot}deg)`;
-    const rightTag = el.querySelector('.swipe-tag.right');
-    const leftTag = el.querySelector('.swipe-tag.left');
-    const t = Math.min(Math.abs(dx)/100, 1);
-    if(dx>0){ rightTag.style.opacity = t; leftTag.style.opacity = 0; }
-    else { leftTag.style.opacity = t; rightTag.style.opacity = 0; }
+    const dy = y - startY;
+    if(Math.abs(dx) > 6 || Math.abs(dy) > 6) dragMoved = true;
+
+    const tagLearned = el.querySelector('.swipe-tag.learned');
+    const tagNotLearned = el.querySelector('.swipe-tag.not-learned');
+    const tagFully = el.querySelector('.swipe-tag.fully-learned');
+
+    tagLearned.style.opacity = 0;
+    tagNotLearned.style.opacity = 0;
+    tagFully.style.opacity = 0;
+
+    // Eğer aşağı çekiliyorsa (Dikey hareket daha baskınsa ve yön aşağıysa)
+    if(dy > 30 && Math.abs(dy) > Math.abs(dx)) {
+        el.style.transform = `translateY(${dy}px) rotate(${dx/30}deg)`;
+        tagFully.style.opacity = Math.min(dy/100, 1);
+    } else {
+        el.style.transform = `translateX(${dx}px) rotate(${dx/18}deg)`;
+        if(dx > 0) tagLearned.style.opacity = Math.min(dx/100, 1);
+        else tagNotLearned.style.opacity = Math.min(Math.abs(dx)/100, 1);
+    }
   }
+  
   function onUp(){
     if(!dragging) return;
     dragging = false;
     const dx = curX - startX;
+    const dy = curY - startY;
     el.style.transition = 'transform .3s ease';
-    if(dx > 90){
+    
+    if(dy > 90 && Math.abs(dy) > Math.abs(dx)){
+      el.style.transform = `translateY(600px) rotate(10deg)`;
+      setTimeout(()=>resolveCard('down'), 180);
+    } else if(dx > 90){
       el.style.transform = `translateX(600px) rotate(20deg)`;
-      setTimeout(()=>resolveCard(true), 180);
+      setTimeout(()=>resolveCard('right'), 180);
     } else if(dx < -90){
       el.style.transform = `translateX(-600px) rotate(-20deg)`;
-      setTimeout(()=>resolveCard(false), 180);
+      setTimeout(()=>resolveCard('left'), 180);
     } else {
       el.style.transform = '';
-      const rightTag = el.querySelector('.swipe-tag.right');
-      const leftTag = el.querySelector('.swipe-tag.left');
-      if(rightTag) rightTag.style.opacity = 0;
-      if(leftTag) leftTag.style.opacity = 0;
+      const tags = el.querySelectorAll('.swipe-tag');
+      tags.forEach(t => t.style.opacity = 0);
     }
   }
 
@@ -684,7 +807,7 @@ function attachSwipe(el){
   el.addEventListener('pointercancel', e=>{ onUp(); });
 }
 
-function resolveCard(learned){
+window.resolveCard = function(action){
   const cardState = currentSessionCard();
   if(!cardState || !session) return;
 
@@ -692,23 +815,32 @@ function resolveCard(learned){
   if(!actualCard) return;
 
   actualCard.seen += 1;
-  actualCard.lastResult = learned ? 'correct' : 'wrong';
-  if(learned){ actualCard.correct += 1; } else { actualCard.wrong += 1; }
   
-  saveWords(); 
-
-  if(learned){
+  if(action === 'down') {
+    // TAM ÖĞRENİLDİ
+    actualCard.correct += 1;
+    actualCard.lastResult = 'correct';
     session.finishedIds.add(actualCard.id);
     session.correctCount += 1;
-    session.pos += 1;
-  } else {
-    session.wrongCount += 1;
-    const gap = 3 + Math.floor(Math.random()*5); // 3..7
-    const insertAt = Math.min(session.queue.length, session.pos + 1 + gap);
-    // Yanlış bilinen kart tekrar kura çekilerek kuyruğa eklenir
+  } 
+  else if (action === 'right') {
+    // ÖĞRENİLDİ (10 kart sonra tekrar sor)
+    actualCard.correct += 1;
+    actualCard.lastResult = 'correct';
+    const insertAt = Math.min(session.queue.length, session.pos + 1 + 10);
     session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: Math.random() > 0.5 });
-    session.pos += 1;
+  } 
+  else if (action === 'left') {
+    // ÖĞRENİLMEDİ (5 kart sonra tekrar sor)
+    actualCard.wrong += 1;
+    actualCard.lastResult = 'wrong';
+    session.wrongCount += 1;
+    const insertAt = Math.min(session.queue.length, session.pos + 1 + 5);
+    session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: Math.random() > 0.5 });
   }
+
+  saveWords(); 
+  session.pos += 1;
   renderReviewTab();
 }
 
