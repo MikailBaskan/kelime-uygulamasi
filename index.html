@@ -21,14 +21,7 @@
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   
-  /* Android ve iOS için Çökme Karşıtı Boyutlandırma */
-  html, body {
-    height: 100%; 
-    min-height: -webkit-fill-available;
-    margin: 0; padding: 0;
-    overscroll-behavior: none; /* Android geri çekme jestini engeller */
-  }
-  
+  html, body { height: 100%; min-height: -webkit-fill-available; margin: 0; padding: 0; overscroll-behavior: none; }
   body{
     background:var(--paper);
     background-image: radial-gradient(circle at 1px 1px, rgba(31,42,68,0.06) 1px, transparent 1px);
@@ -37,8 +30,7 @@
   }
   
   #app{
-    width:100%; max-width:460px; 
-    height: 100%; min-height: -webkit-fill-available;
+    width:100%; max-width:460px; height: 100%; min-height: -webkit-fill-available;
     display:flex; flex-direction:column; position:relative; background:var(--paper);
     box-shadow:0 0 40px rgba(0,0,0,0.08);
   }
@@ -126,8 +118,30 @@
   .postcard .imgzone{ flex:1; background:var(--paper-dark); display:flex; align-items:center; justify-content:center; font-size:70px; position:relative; padding: 12px; }
   .postcard .imgzone img{ max-width: 100%; max-height: 240px; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); pointer-events: none; }
   
-  .tts-btn { position:absolute; top:12px; right:12px; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,0.9); border:1px solid var(--line); box-shadow:0 2px 10px rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; z-index:5;}
-  .tts-btn:active { transform:scale(0.95); }
+  /* BÜYÜTÜLMÜŞ VE ANİMASYONLU TTS (SES) BUTONU */
+  .tts-btn { 
+    position:absolute; top:16px; right:16px; 
+    width:54px; height:54px; /* Daha büyük boyut */
+    border-radius:50%; background:rgba(255,255,255,0.95); 
+    border:2px solid var(--line); box-shadow:0 4px 12px rgba(0,0,0,0.15); 
+    display:flex; align-items:center; justify-content:center; 
+    font-size:26px; /* Daha büyük ikon */
+    cursor:pointer; z-index:5; transition:all 0.2s ease;
+  }
+  .tts-btn:active { transform:scale(0.90); }
+  
+  /* Ses Okunurken Yanıp Sönen Efekt (Playing State) */
+  .tts-btn.playing {
+    background: var(--teal);
+    border-color: var(--teal);
+    animation: pulseTTS 1.2s infinite;
+    transform: scale(0.95);
+  }
+  @keyframes pulseTTS {
+    0% { box-shadow: 0 0 0 0 rgba(47, 143, 122, 0.7); }
+    70% { box-shadow: 0 0 0 12px rgba(47, 143, 122, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(47, 143, 122, 0); }
+  }
 
   .postcard .textzone{ padding:16px 18px 20px; border-top:1px dashed var(--line); text-align:center; background: var(--white); display:flex; flex-direction:column; justify-content:center; min-height:120px;}
   .postcard .en-word{ font-family:'Fraunces', serif; font-weight:700; font-size:26px; }
@@ -175,7 +189,6 @@
   .loading-spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(0,0,0,0.1); border-left-color:var(--ink); border-radius:50%; animation:spin 1s linear infinite; }
   @keyframes spin { 100% { transform:rotate(360deg); } }
   
-  /* Hata Durumu İçin CSS */
   .error-box { background: #fee; border: 1px solid #fcc; padding: 20px; border-radius: 10px; text-align: center; margin: 20px; color: #a00; }
 </style>
 </head>
@@ -278,7 +291,7 @@ function closeKeyboard() {
   }
 }
 
-/* ---------------- DATA & GAMIFICATION (HATA KORUMALI) ---------------- */
+/* ---------------- DATA & GAMIFICATION ---------------- */
 const STORE_KEY = 'kelimeKartpostali_veriler';
 const STATS_KEY = 'kelimeKartpostali_stats';
 
@@ -292,10 +305,7 @@ function loadData(){
     if (resW && resW !== "null" && resW !== "undefined") {
         try { parsedW = JSON.parse(resW); } catch(e){}
     }
-    // Veri yapısı bozulmuşsa (örneğin object olmuşsa) boş diziye dönüştür
     if (!Array.isArray(parsedW)) parsedW = [];
-    
-    // Eski kelimeleri yeni sisteme otomatik uyumlu hale getir
     words = parsedW.map(w => ({ sentence: '', tags: [], interval: 0, ease: 2.5, nextReview: Date.now(), ...w }));
 
     const resS = localStorage.getItem(STATS_KEY);
@@ -307,7 +317,6 @@ function loadData(){
             }
         } catch(e){}
     }
-    
     checkStreak();
   } catch(e) { console.error('Yükleme hatası:', e); }
 }
@@ -395,7 +404,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
   });
 });
 
-/* ---------------- API CALLS, TRANSLATION & TTS ---------------- */
+/* ---------------- API CALLS, TRANSLATION & YENİ TTS (SES) MANTIĞI ---------------- */
 
 async function autoTranslateWord(word) {
     try {
@@ -433,14 +442,43 @@ async function fetchExampleSentence(word, btnEl) {
   }
 }
 
-function speakWord(text) {
+// Android çökmesini engelleyen Global Ses Değişkeni
+let globalUtterance = null; 
+
+function speakWord(text, btnElement) {
   if(!text || typeof window.speechSynthesis === 'undefined') return;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'en-US';
-  u.rate = 0.9; 
-  window.speechSynthesis.speak(u);
+  
+  window.speechSynthesis.cancel(); // Varsa önceki sesi sustur
+
+  globalUtterance = new SpeechSynthesisUtterance(text);
+  globalUtterance.lang = 'en-US';
+  globalUtterance.rate = 0.85; // Daha net anlaşılması için hafif yavaş
+
+  // Eğer Google'ın orijinal İngilizce sesi varsa onu seç (Daha kaliteli)
+  const voices = window.speechSynthesis.getVoices();
+  const usVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Google'));
+  if(usVoice) globalUtterance.voice = usVoice;
+
+  // Buton animasyonunu başlat ve ses bitince kaldır
+  if (btnElement) {
+    btnElement.classList.add('playing');
+    
+    globalUtterance.onend = () => { 
+      btnElement.classList.remove('playing'); 
+    };
+    globalUtterance.onerror = () => { 
+      btnElement.classList.remove('playing'); 
+    };
+  }
+
+  window.speechSynthesis.speak(globalUtterance);
 }
+
+// Chrome'un ilk girişte sesleri yüklemesini garantiye almak için
+window.speechSynthesis.onvoiceschanged = function() {
+    window.speechSynthesis.getVoices();
+};
+
 
 /* ---------------- PASTE & CROPPER LOGIC ---------------- */
 document.addEventListener('paste', (e) => {
@@ -526,7 +564,7 @@ function openPreviewModal(id) {
   container.innerHTML = `
     <div class="postcard" style="position:relative; pointer-events:auto;">
       <div class="stripe"></div>
-      <button class="tts-btn" onclick="speakWord('${escapeHtml(w.en)}. ${escapeHtml(w.sentence)}')">🔊</button>
+      <button class="tts-btn" id="previewTtsBtn">🔊</button>
       <div class="imgzone">${w.img ? `<img src="${w.img}">` : autoEmoji(w.en)}</div>
       <div class="textzone">
         <div class="en-word">${escapeHtml(w.en)}</div>
@@ -535,11 +573,21 @@ function openPreviewModal(id) {
       </div>
     </div>
   `;
+  
+  // Önizleme ekranındaki Ses Butonuna tıklama özelliği ekle
+  document.getElementById('previewTtsBtn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      speakWord(`${w.en}. ${w.sentence || ''}`, this);
+  });
+
   const cropBtn = document.getElementById('cropFromPreviewBtn');
   cropBtn.style.display = w.img ? 'block' : 'none';
   document.getElementById('previewModal').classList.add('active');
 }
-document.getElementById('closePreviewBtn').addEventListener('click', () => document.getElementById('previewModal').classList.remove('active'));
+document.getElementById('closePreviewBtn').addEventListener('click', () => {
+    document.getElementById('previewModal').classList.remove('active');
+    window.speechSynthesis.cancel(); // Kapatınca sesi sustur
+});
 document.getElementById('cropFromPreviewBtn').addEventListener('click', () => {
   const w = words.find(x => x.id === previewWordId);
   if(w && w.img) openCropper(w.img, 'preview', previewWordId);
@@ -622,7 +670,6 @@ function openEditModal(id) {
   document.getElementById('editTr').dataset.lastEn = word.en || ''; 
   document.getElementById('editSentence').value = word.sentence || '';
   
-  // Etiketler dizi mi kontrol et (Çökmeyi Engellemek İçin)
   const tagsArr = Array.isArray(word.tags) ? word.tags : [];
   document.getElementById('editTags').value = tagsArr.join(', ');
   
@@ -924,9 +971,10 @@ function renderReviewTab(){
     </div>
   `;
 
-  document.getElementById('ttsPlayBtn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    speakWord(`${card.en}. ${card.sentence || ''}`);
+  // Yeni Güçlü Ses Tıklaması
+  document.getElementById('ttsPlayBtn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      speakWord(`${card.en}. ${card.sentence || ''}`, this);
   });
 
   const postcardEl = document.getElementById('postcard');
@@ -968,6 +1016,8 @@ function attachSwipe(el){
 }
 
 window.resolveCard = function(action){
+  window.speechSynthesis.cancel(); // Kaydırınca sesi otomatik sustur
+  
   const cardState = currentSessionCard();
   if(!cardState || !session) return;
   const actualCard = words.find(w => w.id === cardState.id);
