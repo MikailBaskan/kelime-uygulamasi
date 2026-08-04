@@ -24,7 +24,7 @@
     --white:#FFFDF6;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{height:100%; overscroll-behavior-y: none;} /* Mobilde sayfanın yaylanmasını engeller */
+  html,body{height:100%; overscroll-behavior-y: none;} 
   body{
     margin:0;
     background:var(--paper);
@@ -355,12 +355,11 @@
   </div>
 </div>
 
-<!-- Crop Modal (Mobil Uyumlu) -->
+<!-- Crop Modal (Mobilde Çökmeyi Engelleyen Güncel Versiyon) -->
 <div class="modal-overlay" id="cropModal" style="z-index:150;">
   <div class="modal-content" style="width: 95%; max-width: 500px; height: 80vh; max-height: 600px; display:flex; flex-direction:column; padding: 15px;">
     <div class="section-title">Fotoğrafı Kırp</div>
-    <!-- touch-action: none; mobilde ekranın kaymasını engeller -->
-    <div style="flex:1; min-height:0; width:100%; background:#000; border-radius:8px; overflow:hidden; touch-action: none; position: relative;">
+    <div style="flex:1; min-height:0; width:100%; background:#000; border-radius:8px; overflow:hidden; position: relative;">
       <img id="cropImage" style="max-width: 100%; display:block;">
     </div>
     <div style="display:flex; gap:10px; margin-top:15px; flex-shrink:0;">
@@ -437,7 +436,7 @@ function updateHeaderBadge(){
   document.getElementById('headerBadge').textContent = words.length + ' kelime';
 }
 
-/* ---------------- CROPPER LOGIC ---------------- */
+/* ---------------- CROPPER LOGIC (MOBİL GÜNCELLEMESİ) ---------------- */
 let cropper = null;
 let cropTarget = null; 
 
@@ -445,27 +444,34 @@ function openCropper(file, target) {
   cropTarget = target;
   const url = URL.createObjectURL(file);
   const image = document.getElementById('cropImage');
-  image.src = url;
-  
   const modal = document.getElementById('cropModal');
+  
+  // Önce modalı açıyoruz (Display None iken Cropper boyut hesaplayamaz)
   modal.classList.add('active'); 
   
-  if(cropper) { cropper.destroy(); }
+  if(cropper) { cropper.destroy(); cropper = null; }
+
+  // Fotoğraf YÜKLENDİKTEN SONRA Cropper'ı başlat (Mobil çökmeleri önler)
+  image.onload = () => {
+    // 50ms ekstra gecikme, mobil tarayıcının arayüzü tam oturtmasına izin verir
+    setTimeout(() => {
+        if(cropper) { cropper.destroy(); }
+        cropper = new Cropper(image, {
+          viewMode: 1, 
+          dragMode: 'move',
+          autoCropArea: 0.8,
+          restore: false,
+          guides: true,
+          center: true,
+          highlight: false,
+          cropBoxMovable: true,
+          cropBoxResizable: true,
+          toggleDragModeOnDblclick: false,
+        });
+    }, 50);
+  };
   
-  setTimeout(() => {
-      cropper = new Cropper(image, {
-        viewMode: 1, // Kırpma alanının resmin dışına çıkmasını engeller
-        dragMode: 'move',
-        autoCropArea: 0.8,
-        restore: false,
-        guides: true,
-        center: true,
-        highlight: false,
-        cropBoxMovable: true,
-        cropBoxResizable: true,
-        toggleDragModeOnDblclick: false,
-      });
-  }, 50);
+  image.src = url;
 }
 
 document.getElementById('cancelCropBtn').addEventListener('click', () => {
@@ -510,7 +516,8 @@ document.getElementById('editFile').addEventListener('change', (e) => {
   const f = e.target.files[0];
   if(!f) return;
   openCropper(f, 'edit');
-  e.target.value = ''; 
+  // Mobilde dosya okumayı kesmemesi için input sıfırlamayı geciktirdik
+  setTimeout(() => { e.target.value = ''; }, 1000); 
 });
 
 document.getElementById('editClearPhoto').addEventListener('click', () => {
@@ -603,7 +610,7 @@ function renderWordsTab(){
         const f = e.target.files[0];
         if(!f) return;
         openCropper(f, 'add');
-        e.target.value = ''; 
+        setTimeout(() => { e.target.value = ''; }, 1000); 
       });
   }
   
