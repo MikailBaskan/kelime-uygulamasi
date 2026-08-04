@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Kelime Kartpostalı — İngilizce Öğren</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F3ECD9">
@@ -24,7 +24,7 @@
     --white:#FFFDF6;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;}
+  html,body{height:100%; overscroll-behavior-y: none;} /* Mobilde sayfanın yaylanmasını engeller */
   body{
     margin:0;
     background:var(--paper);
@@ -355,11 +355,12 @@
   </div>
 </div>
 
-<!-- Crop Modal -->
+<!-- Crop Modal (Mobil Uyumlu) -->
 <div class="modal-overlay" id="cropModal" style="z-index:150;">
-  <div class="modal-content" style="height: 75vh; display:flex; flex-direction:column; padding: 15px;">
+  <div class="modal-content" style="width: 95%; max-width: 500px; height: 80vh; max-height: 600px; display:flex; flex-direction:column; padding: 15px;">
     <div class="section-title">Fotoğrafı Kırp</div>
-    <div style="flex:1; min-height:0; background:#eee; border-radius:8px; overflow:hidden;">
+    <!-- touch-action: none; mobilde ekranın kaymasını engeller -->
+    <div style="flex:1; min-height:0; width:100%; background:#000; border-radius:8px; overflow:hidden; touch-action: none; position: relative;">
       <img id="cropImage" style="max-width: 100%; display:block;">
     </div>
     <div style="display:flex; gap:10px; margin-top:15px; flex-shrink:0;">
@@ -451,10 +452,9 @@ function openCropper(file, target) {
   
   if(cropper) { cropper.destroy(); }
   
-  // Modal render olana kadar çok kısa bekle ki cropper boyutları hesaplayabilsin
   setTimeout(() => {
       cropper = new Cropper(image, {
-        viewMode: 1,
+        viewMode: 1, // Kırpma alanının resmin dışına çıkmasını engeller
         dragMode: 'move',
         autoCropArea: 0.8,
         restore: false,
@@ -475,7 +475,6 @@ document.getElementById('cancelCropBtn').addEventListener('click', () => {
 
 document.getElementById('applyCropBtn').addEventListener('click', () => {
   if(!cropper) return;
-  // Resmi çok ağır olmaması için max 600x600 px ebatlarında alıyoruz
   const canvas = cropper.getCroppedCanvas({
     maxWidth: 600,
     maxHeight: 600,
@@ -511,7 +510,7 @@ document.getElementById('editFile').addEventListener('change', (e) => {
   const f = e.target.files[0];
   if(!f) return;
   openCropper(f, 'edit');
-  e.target.value = ''; // Input'u sıfırla ki aynı resmi tekrar seçebilsin
+  e.target.value = ''; 
 });
 
 document.getElementById('editClearPhoto').addEventListener('click', () => {
@@ -594,7 +593,6 @@ function renderWordsTab(){
   const fileInput = document.getElementById('inFile');
   const clearBtn = document.getElementById('clearPhoto');
   
-  // Fotoğraf önizlemesini koru (sekme değiştirip gelince kaybolmasın diye)
   if(pendingImg) {
       preview.innerHTML = `<img src="${pendingImg}">`;
       clearBtn.style.display = 'inline-block';
