@@ -118,19 +118,17 @@
   .postcard .imgzone{ flex:1; background:var(--paper-dark); display:flex; align-items:center; justify-content:center; font-size:70px; position:relative; padding: 12px; }
   .postcard .imgzone img{ max-width: 100%; max-height: 240px; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); pointer-events: none; }
   
-  /* BÜYÜTÜLMÜŞ VE ANİMASYONLU TTS (SES) BUTONU */
   .tts-btn { 
     position:absolute; top:16px; right:16px; 
-    width:54px; height:54px; /* Daha büyük boyut */
+    width:54px; height:54px; 
     border-radius:50%; background:rgba(255,255,255,0.95); 
     border:2px solid var(--line); box-shadow:0 4px 12px rgba(0,0,0,0.15); 
     display:flex; align-items:center; justify-content:center; 
-    font-size:26px; /* Daha büyük ikon */
+    font-size:26px; 
     cursor:pointer; z-index:5; transition:all 0.2s ease;
   }
   .tts-btn:active { transform:scale(0.90); }
   
-  /* Ses Okunurken Yanıp Sönen Efekt (Playing State) */
   .tts-btn.playing {
     background: var(--teal);
     border-color: var(--teal);
@@ -284,7 +282,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <script>
-/* ---------------- KEYBOARD HELPER FOR ANDROID ---------------- */
 function closeKeyboard() {
   if (document.activeElement && document.activeElement.blur) {
     document.activeElement.blur();
@@ -404,7 +401,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
   });
 });
 
-/* ---------------- API CALLS, TRANSLATION & YENİ TTS (SES) MANTIĞI ---------------- */
+/* ---------------- API CALLS, TRANSLATION & TTS ---------------- */
 
 async function autoTranslateWord(word) {
     try {
@@ -442,62 +439,34 @@ async function fetchExampleSentence(word, btnEl) {
   }
 }
 
-// Android çökmesini engelleyen Global Ses Değişkeni
 let globalUtterance = null; 
-
 function speakWord(text, btnElement) {
   if(!text || typeof window.speechSynthesis === 'undefined') return;
   
-  window.speechSynthesis.cancel(); // Varsa önceki sesi sustur
+  window.speechSynthesis.cancel(); 
 
   globalUtterance = new SpeechSynthesisUtterance(text);
   globalUtterance.lang = 'en-US';
-  globalUtterance.rate = 0.85; // Daha net anlaşılması için hafif yavaş
+  globalUtterance.rate = 0.85; 
 
-  // Eğer Google'ın orijinal İngilizce sesi varsa onu seç (Daha kaliteli)
   const voices = window.speechSynthesis.getVoices();
   const usVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Google'));
   if(usVoice) globalUtterance.voice = usVoice;
 
-  // Buton animasyonunu başlat ve ses bitince kaldır
   if (btnElement) {
     btnElement.classList.add('playing');
-    
-    globalUtterance.onend = () => { 
-      btnElement.classList.remove('playing'); 
-    };
-    globalUtterance.onerror = () => { 
-      btnElement.classList.remove('playing'); 
-    };
+    globalUtterance.onend = () => btnElement.classList.remove('playing'); 
+    globalUtterance.onerror = () => btnElement.classList.remove('playing'); 
   }
 
   window.speechSynthesis.speak(globalUtterance);
 }
 
-// Chrome'un ilk girişte sesleri yüklemesini garantiye almak için
 window.speechSynthesis.onvoiceschanged = function() {
     window.speechSynthesis.getVoices();
 };
 
-
-/* ---------------- PASTE & CROPPER LOGIC ---------------- */
-document.addEventListener('paste', (e) => {
-  const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-  for (let index in items) {
-    const item = items[index];
-    if (item.kind === 'file' && item.type.includes('image/')) {
-      const blob = item.getAsFile();
-      e.preventDefault(); 
-      if (document.getElementById('editModal').classList.contains('active')) {
-         openCropper(blob, 'edit');
-      } else if (currentTab === 'words') {
-         openCropper(blob, 'add');
-      }
-      return;
-    }
-  }
-});
-
+/* ---------------- CROPPER LOGIC ---------------- */
 let cropper = null; let cropTarget = null; let cropWordId = null;
 function openCropper(source, target, wordId = null) {
   closeKeyboard();
@@ -574,8 +543,9 @@ function openPreviewModal(id) {
     </div>
   `;
   
-  // Önizleme ekranındaki Ses Butonuna tıklama özelliği ekle
-  document.getElementById('previewTtsBtn').addEventListener('click', function(e) {
+  const pBtn = document.getElementById('previewTtsBtn');
+  pBtn.addEventListener('pointerdown', e => e.stopPropagation()); // Tıklamayı korur
+  pBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       speakWord(`${w.en}. ${w.sentence || ''}`, this);
   });
@@ -586,7 +556,7 @@ function openPreviewModal(id) {
 }
 document.getElementById('closePreviewBtn').addEventListener('click', () => {
     document.getElementById('previewModal').classList.remove('active');
-    window.speechSynthesis.cancel(); // Kapatınca sesi sustur
+    window.speechSynthesis.cancel(); 
 });
 document.getElementById('cropFromPreviewBtn').addEventListener('click', () => {
   const w = words.find(x => x.id === previewWordId);
@@ -609,7 +579,6 @@ document.getElementById('editTr').addEventListener('focus', async () => {
   const word = document.getElementById('editEn').value.trim();
   const trInput = document.getElementById('editTr');
   const trStatus = document.getElementById('editTrStatusIcon');
-  
   if(word && (trInput.value.trim() === '' || trInput.dataset.lastEn !== word)) {
       trStatus.innerHTML = '<span class="loading-spinner"></span>';
       const res = await autoTranslateWord(word);
@@ -723,7 +692,7 @@ function renderWordsTab(){
           <button class="primary-btn" id="addWordBtn">Kartı ekle</button>
         </div>
         <div class="card-panel">
-          <div class="section-title">Kelimelerim (${words.length}) <span style="font-size:11px; font-weight:normal; color:var(--ink-soft); float:right; margin-top:6px;">Basılı tutarak önizle</span></div>
+          <div class="section-title">Kelimelerim (${words.length}) <span style="font-size:11px; font-weight:normal; color:var(--ink-soft); float:right; margin-top:6px;">Basılı tutarak düzenle</span></div>
           <div id="wordList"></div>
         </div>
       `;
@@ -815,7 +784,9 @@ function renderWordsTab(){
         listEl.querySelectorAll('.wordrow').forEach(row => {
             let pressTimer; let isLongPress = false; const id = row.dataset.id;
             row.addEventListener('contextmenu', e => e.preventDefault());
-            const startPress = () => { isLongPress = false; pressTimer = setTimeout(() => { isLongPress = true; openPreviewModal(id); }, 500); };
+            
+            // YERLERİ DEĞİŞTİRİLDİ: Basılı tutunca Düzenle (Edit) açılır
+            const startPress = () => { isLongPress = false; pressTimer = setTimeout(() => { isLongPress = true; openEditModal(id); }, 500); };
             const cancelPress = () => { if(pressTimer) clearTimeout(pressTimer); };
             
             row.addEventListener('touchstart', startPress, {passive: true});
@@ -823,15 +794,16 @@ function renderWordsTab(){
             row.addEventListener('touchmove', cancelPress, {passive: true});
             row.addEventListener('mousedown', startPress); row.addEventListener('mouseup', cancelPress); row.addEventListener('mouseleave', cancelPress);
             
+            // YERLERİ DEĞİŞTİRİLDİ: Kısa tıklayınca Önizleme (Preview) açılır
             row.addEventListener('click', (e) => {
                 if(e.target.closest('.del')) return;
                 if(e.target.closest('.thumb.has-photo')) return openCropperForWord(id);
-                if(!isLongPress) openEditModal(id);
+                if(!isLongPress) openPreviewModal(id);
             });
         });
       }
   } catch (err) {
-      main.innerHTML = `<div class="error-box"><b>Veri Görüntüleme Hatası:</b><br>${err.message}<br><br>Geriye dönük uyumsuz bir kelime eklentisi olmuş olabilir. Lütfen 'İstatistik' sekmesinden verilerinizi dışa aktarın.</div>`;
+      main.innerHTML = `<div class="error-box"><b>Veri Görüntüleme Hatası:</b><br>${err.message}</div>`;
   }
 }
 
@@ -971,15 +943,18 @@ function renderReviewTab(){
     </div>
   `;
 
-  // Yeni Güçlü Ses Tıklaması
-  document.getElementById('ttsPlayBtn').addEventListener('click', function(e) {
+  const btn = document.getElementById('ttsPlayBtn');
+  // ÖNEMLİ: Butonun swipe algoritmasına yakalanmasını engeller
+  btn.addEventListener('pointerdown', e => e.stopPropagation());
+  
+  btn.addEventListener('click', function(e) {
       e.stopPropagation();
       speakWord(`${card.en}. ${card.sentence || ''}`, this);
   });
 
   const postcardEl = document.getElementById('postcard');
   postcardEl.addEventListener('click', (e)=>{
-    if(dragMoved || e.target.closest('.tts-btn')) return;
+    if(dragMoved) return;
     postcardEl.classList.toggle('flipped');
     document.getElementById('flipHint').style.visibility = postcardEl.classList.contains('flipped') ? 'hidden' : 'visible';
   });
@@ -1016,7 +991,7 @@ function attachSwipe(el){
 }
 
 window.resolveCard = function(action){
-  window.speechSynthesis.cancel(); // Kaydırınca sesi otomatik sustur
+  window.speechSynthesis.cancel(); // Kartı kaydırınca sesi hemen keser
   
   const cardState = currentSessionCard();
   if(!cardState || !session) return;
