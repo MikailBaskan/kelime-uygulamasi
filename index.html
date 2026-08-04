@@ -133,8 +133,9 @@
     border:1px dashed var(--line);
     display:flex; align-items:center; justify-content:center;
     font-size:22px; overflow:hidden; background:var(--paper);
-    flex-shrink:0;
+    flex-shrink:0; transition: border-color .2s;
   }
+  .photo-preview.has-photo{ cursor: pointer; border:2px solid var(--teal); }
   .photo-preview img{width:100%; height:100%; object-fit:cover;}
   .filebtn{
     font-size:12px; font-weight:600; color:var(--ink);
@@ -163,15 +164,16 @@
     display:flex; align-items:center; gap:12px;
     padding:10px 4px;
     border-bottom:1px solid var(--paper-dark);
-    cursor:pointer;
+    cursor:pointer; user-select:none; /* Basılı tutmayı kolaylaştırır */
   }
   .wordrow:active{background:var(--paper);}
   .wordrow:last-child{border-bottom:none;}
   .wordrow .thumb{
     width:44px; height:44px; border-radius:8px; overflow:hidden;
     background:var(--paper-dark); display:flex; align-items:center; justify-content:center;
-    font-size:18px; flex-shrink:0;
+    font-size:18px; flex-shrink:0; position:relative;
   }
+  .wordrow .thumb.has-photo{ cursor: pointer; box-shadow: 0 0 0 2px var(--teal); }
   .wordrow .thumb img{width:100%; height:100%; object-fit:cover;}
   .wordrow .txt{flex:1; min-width:0;}
   .wordrow .en{font-weight:600; font-size:15px;}
@@ -218,11 +220,11 @@
     display:flex; align-items:center; justify-content:center;
     font-size:70px;
     position:relative;
-    padding: 16px;
+    padding: 12px; /* Resme daha çok yer açmak için küçültüldü */
   }
   .postcard .imgzone img{
     max-width: 100%; 
-    max-height: 180px; 
+    max-height: 240px; /* FOTOĞRAF BOYUTU BÜYÜTÜLDÜ (180'den 240'a) */
     object-fit: contain; 
     border-radius: 8px; 
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
@@ -317,6 +319,15 @@
     background: var(--white); width: 90%; max-width: 400px;
     border-radius: 16px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
   }
+  
+  /* Önizleme Modal Özel Tasarımı */
+  #previewModal .modal-content {
+    background: transparent; box-shadow: none; padding: 0;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  #previewModal .deck-wrap {
+    width: 100%; max-width: 340px; height: 60vh; min-height: 400px; margin: 0;
+  }
 </style>
 </head>
 <body>
@@ -355,9 +366,22 @@
   </div>
 </div>
 
-<!-- Crop Modal (Mobilde Çökmeyi Engelleyen Güncel Versiyon) -->
+<!-- Preview Modal (Basılı Tutunca Açılan Kart Önizlemesi) -->
+<div class="modal-overlay" id="previewModal" style="z-index: 120;">
+  <div class="modal-content">
+    <div class="deck-wrap" id="previewCardContainer">
+      <!-- Seçilen kart buraya çizilecek -->
+    </div>
+    <div style="display:flex; gap:10px; margin-top:20px; width: 100%; max-width: 340px;">
+      <button class="primary-btn outline" id="closePreviewBtn" style="margin-top:0; background:var(--white);">Kapat</button>
+      <button class="primary-btn teal" id="cropFromPreviewBtn" style="margin-top:0; display:none;">Fotoğrafı Kırp</button>
+    </div>
+  </div>
+</div>
+
+<!-- Crop Modal -->
 <div class="modal-overlay" id="cropModal" style="z-index:150;">
-  <div class="modal-content" style="width: 95%; max-width: 500px; height: 80vh; max-height: 600px; display:flex; flex-direction:column; padding: 15px;">
+  <div class="modal-content" style="width: 95%; max-width: 500px; height: 80vh; max-height: 600px; display:flex; flex-direction:column; padding: 15px; background: var(--white);">
     <div class="section-title">Fotoğrafı Kırp</div>
     <div style="flex:1; min-height:0; width:100%; background:#000; border-radius:8px; overflow:hidden; position: relative;">
       <img id="cropImage" style="max-width: 100%; display:block;">
@@ -436,24 +460,22 @@ function updateHeaderBadge(){
   document.getElementById('headerBadge').textContent = words.length + ' kelime';
 }
 
-/* ---------------- CROPPER LOGIC (MOBİL GÜNCELLEMESİ) ---------------- */
+/* ---------------- CROPPER LOGIC ---------------- */
 let cropper = null;
 let cropTarget = null; 
+let cropWordId = null;
 
-function openCropper(file, target) {
+function openCropper(source, target, wordId = null) {
   cropTarget = target;
-  const url = URL.createObjectURL(file);
+  cropWordId = wordId;
   const image = document.getElementById('cropImage');
   const modal = document.getElementById('cropModal');
   
-  // Önce modalı açıyoruz (Display None iken Cropper boyut hesaplayamaz)
   modal.classList.add('active'); 
   
   if(cropper) { cropper.destroy(); cropper = null; }
 
-  // Fotoğraf YÜKLENDİKTEN SONRA Cropper'ı başlat (Mobil çökmeleri önler)
   image.onload = () => {
-    // 50ms ekstra gecikme, mobil tarayıcının arayüzü tam oturtmasına izin verir
     setTimeout(() => {
         if(cropper) { cropper.destroy(); }
         cropper = new Cropper(image, {
@@ -471,7 +493,11 @@ function openCropper(file, target) {
     }, 50);
   };
   
-  image.src = url;
+  if (typeof source === 'string') {
+    image.src = source;
+  } else if (source instanceof File) {
+    image.src = URL.createObjectURL(source);
+  }
 }
 
 document.getElementById('cancelCropBtn').addEventListener('click', () => {
@@ -490,17 +516,88 @@ document.getElementById('applyCropBtn').addEventListener('click', () => {
 
   if (cropTarget === 'add') {
      pendingImg = dataUrl;
-     document.getElementById('photoPreview').innerHTML = `<img src="${dataUrl}">`;
+     const prev = document.getElementById('photoPreview');
+     prev.innerHTML = `<img src="${dataUrl}">`;
+     prev.classList.add('has-photo');
      document.getElementById('clearPhoto').style.display = 'inline-block';
   } else if (cropTarget === 'edit') {
      editPendingImg = dataUrl;
-     document.getElementById('editPhotoPreview').innerHTML = `<img src="${dataUrl}">`;
+     const prev = document.getElementById('editPhotoPreview');
+     prev.innerHTML = `<img src="${dataUrl}">`;
+     prev.classList.add('has-photo');
      document.getElementById('editClearPhoto').style.display = 'inline-block';
+  } else if (cropTarget === 'list' && cropWordId) {
+     const wordIndex = words.findIndex(w => w.id === cropWordId);
+     if(wordIndex !== -1) {
+       words[wordIndex].img = dataUrl;
+       saveWords();
+       showToast('Fotoğraf kırpıldı ve güncellendi ✓');
+       renderWordsTab();
+     }
+  } else if (cropTarget === 'preview' && cropWordId) {
+     const wordIndex = words.findIndex(w => w.id === cropWordId);
+     if(wordIndex !== -1) {
+       words[wordIndex].img = dataUrl;
+       saveWords();
+       showToast('Fotoğraf güncellendi ✓');
+       openPreviewModal(cropWordId); // Önizlemeyi tazele
+       renderWordsTab(); // Arka plandaki listeyi tazele
+     }
   }
 
   document.getElementById('cropModal').classList.remove('active');
   cropper.destroy();
   cropper = null;
+});
+
+window.openCropperForWord = function(wordId) {
+  const w = words.find(item => item.id === wordId);
+  if(w && w.img) {
+    openCropper(w.img, 'list', wordId);
+  }
+};
+
+/* ---------------- PREVIEW MODAL LOGIC ---------------- */
+let previewWordId = null;
+
+function openPreviewModal(id) {
+  const w = words.find(x => x.id === id);
+  if(!w) return;
+  previewWordId = id;
+  
+  const container = document.getElementById('previewCardContainer');
+  container.innerHTML = `
+    <div class="postcard" style="position:relative; pointer-events:none;">
+      <div class="stripe"></div>
+      <div class="imgzone">
+        ${w.img ? `<img src="${w.img}">` : autoEmoji(w.en)}
+      </div>
+      <div class="textzone">
+        <div class="en-word">${escapeHtml(w.en)}</div>
+        <div class="tr-word" style="opacity:1;">${escapeHtml(w.tr)}</div>
+      </div>
+    </div>
+  `;
+  
+  const cropBtn = document.getElementById('cropFromPreviewBtn');
+  if(w.img) {
+      cropBtn.style.display = 'block';
+  } else {
+      cropBtn.style.display = 'none'; // Resim yoksa kırpma butonu çıkmaz
+  }
+
+  document.getElementById('previewModal').classList.add('active');
+}
+
+document.getElementById('closePreviewBtn').addEventListener('click', () => {
+  document.getElementById('previewModal').classList.remove('active');
+});
+
+document.getElementById('cropFromPreviewBtn').addEventListener('click', () => {
+  const w = words.find(x => x.id === previewWordId);
+  if(w && w.img) {
+    openCropper(w.img, 'preview', previewWordId);
+  }
 });
 
 
@@ -516,13 +613,19 @@ document.getElementById('editFile').addEventListener('change', (e) => {
   const f = e.target.files[0];
   if(!f) return;
   openCropper(f, 'edit');
-  // Mobilde dosya okumayı kesmemesi için input sıfırlamayı geciktirdik
   setTimeout(() => { e.target.value = ''; }, 1000); 
 });
 
-document.getElementById('editClearPhoto').addEventListener('click', () => {
+document.getElementById('editPhotoPreview').addEventListener('click', () => {
+  if(editPendingImg) { openCropper(editPendingImg, 'edit'); }
+});
+
+document.getElementById('editClearPhoto').addEventListener('click', (e) => {
+  e.stopPropagation();
   editPendingImg = null;
-  document.getElementById('editPhotoPreview').innerHTML = '📷';
+  const prev = document.getElementById('editPhotoPreview');
+  prev.innerHTML = '📷';
+  prev.classList.remove('has-photo');
   document.getElementById('editClearPhoto').style.display = 'none';
   document.getElementById('editFile').value = '';
 });
@@ -559,9 +662,11 @@ function openEditModal(id) {
   
   if(word.img) {
     preview.innerHTML = `<img src="${word.img}">`;
+    preview.classList.add('has-photo');
     clearBtn.style.display = 'inline-block';
   } else {
     preview.innerHTML = '📷';
+    preview.classList.remove('has-photo');
     clearBtn.style.display = 'none';
   }
   
@@ -582,16 +687,18 @@ function renderWordsTab(){
       <label class="field">Türkçe anlamı</label>
       <input type="text" id="inTr" placeholder="örn. elma">
       <div class="photo-row">
-        <div class="photo-preview" id="photoPreview">📷</div>
+        <div class="photo-preview ${pendingImg ? 'has-photo' : ''}" id="photoPreview">
+          ${pendingImg ? `<img src="${pendingImg}">` : '📷'}
+        </div>
         <label class="filebtn">Fotoğraf seç
           <input type="file" id="inFile" accept="image/*" style="display:none">
         </label>
-        <button class="filebtn" id="clearPhoto" style="display:none">Kaldır</button>
+        <button class="filebtn" id="clearPhoto" style="${pendingImg ? 'display:inline-block' : 'display:none'}">Kaldır</button>
       </div>
       <button class="primary-btn" id="addWordBtn">Kartı ekle</button>
     </div>
     <div class="card-panel">
-      <div class="section-title">Kelimelerim (${words.length}) <span style="font-size:11px; font-weight:normal; color:var(--ink-soft); float:right; margin-top:6px;">Düzenlemek için karta tıkla</span></div>
+      <div class="section-title">Kelimelerim (${words.length}) <span style="font-size:11px; font-weight:normal; color:var(--ink-soft); float:right; margin-top:6px;">Basılı tutarak önizle</span></div>
       <div id="wordList"></div>
     </div>
   `;
@@ -600,10 +707,9 @@ function renderWordsTab(){
   const fileInput = document.getElementById('inFile');
   const clearBtn = document.getElementById('clearPhoto');
   
-  if(pendingImg) {
-      preview.innerHTML = `<img src="${pendingImg}">`;
-      clearBtn.style.display = 'inline-block';
-  }
+  preview.addEventListener('click', () => {
+    if(pendingImg) { openCropper(pendingImg, 'add'); }
+  });
 
   if (fileInput) {
       fileInput.addEventListener('change', (e)=>{
@@ -615,9 +721,11 @@ function renderWordsTab(){
   }
   
   if (clearBtn) {
-      clearBtn.addEventListener('click', ()=>{
+      clearBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
         pendingImg = null;
         preview.innerHTML = '📷';
+        preview.classList.remove('has-photo');
         clearBtn.style.display = 'none';
       });
   }
@@ -650,8 +758,10 @@ function renderWordsTab(){
     listEl.innerHTML = `<div class="empty"><div class="big">🪄</div>Henüz kelime yok. Yukarıdan ilk kartını ekle!</div>`;
   } else {
     listEl.innerHTML = words.slice().reverse().map(w=>`
-      <div class="wordrow" onclick="openEditModal('${w.id}')">
-        <div class="thumb">${w.img ? `<img src="${w.img}">` : autoEmoji(w.en)}</div>
+      <div class="wordrow" data-id="${w.id}">
+        <div class="thumb ${w.img ? 'has-photo' : ''}">
+          ${w.img ? `<img src="${w.img}">` : autoEmoji(w.en)}
+        </div>
         <div class="txt">
           <div class="en">${escapeHtml(w.en)}</div>
           <div class="tr">${escapeHtml(w.tr)}</div>
@@ -661,6 +771,7 @@ function renderWordsTab(){
       </div>
     `).join('');
     
+    // Silme Butonları
     listEl.querySelectorAll('.del').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation(); 
@@ -671,6 +782,48 @@ function renderWordsTab(){
             updateHeaderBadge();
         }
       });
+    });
+
+    // Basılı Tutma (Long Press) ve Kısa Tıklama Mantığı
+    listEl.querySelectorAll('.wordrow').forEach(row => {
+        let pressTimer;
+        let isLongPress = false;
+        const id = row.dataset.id;
+        
+        const startPress = () => {
+            isLongPress = false;
+            pressTimer = setTimeout(() => {
+                isLongPress = true;
+                openPreviewModal(id);
+            }, 500); // 500ms basılı tutunca önizleme açılır
+        };
+        const cancelPress = () => {
+            if(pressTimer) clearTimeout(pressTimer);
+        };
+        
+        row.addEventListener('touchstart', startPress, {passive: true});
+        row.addEventListener('touchend', (e) => {
+            cancelPress();
+            if(isLongPress) e.preventDefault(); // Uzun basıldıysa tıklamayı engelle
+        });
+        row.addEventListener('touchmove', cancelPress, {passive: true});
+        
+        row.addEventListener('mousedown', startPress);
+        row.addEventListener('mouseup', cancelPress);
+        row.addEventListener('mouseleave', cancelPress);
+        
+        row.addEventListener('click', (e) => {
+            if(e.target.closest('.del')) return;
+            // Fotoğrafa tıklandıysa doğrudan kırpma aç
+            if(e.target.closest('.thumb.has-photo')) {
+                openCropperForWord(id);
+                return;
+            }
+            // Uzun basılmadıysa düzenleme penceresini aç
+            if(!isLongPress) {
+                openEditModal(id);
+            }
+        });
     });
   }
 }
