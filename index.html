@@ -96,12 +96,20 @@
   }
   .wordrow .thumb.has-photo{ cursor: pointer; box-shadow: 0 0 0 2px var(--teal); }
   .wordrow .thumb img{width:100%; height:100%; object-fit:cover; pointer-events: none;}
-  .wordrow .txt{flex:1; min-width:0; pointer-events: none;}
-  .wordrow .en{font-weight:600; font-size:15px; display:flex; align-items:center; gap:6px;}
-  .wordrow .tr{font-size:12px; color:var(--ink-soft);}
+  .wordrow .txt{flex:1; min-width:0; pointer-events: none; overflow: hidden; }
+  
+  /* OVERLAP HATASINI ÇÖZEN CSS KISMI */
+  .wordrow .en, .wordrow .tr { font-weight:600; font-size:15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+  .wordrow .tr { font-size:12px; color:var(--ink-soft); font-weight: 500; }
+  .wordrow .stat {
+    font-family:'Space Mono'; font-size:10px; color:var(--ink-soft); text-align:right; pointer-events: none;
+    flex-shrink: 0; white-space: nowrap; margin-left: 4px;
+  }
+  /* ---------------------------------- */
+
   .wordrow .tags { display:flex; gap:4px; margin-top:4px; flex-wrap:wrap; }
   .wordrow .tag-pill { font-size:9px; background:var(--line); color:var(--ink); padding:2px 6px; border-radius:4px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;}
-  .wordrow .del{ border:none; background:none; color:var(--rust); font-size:16px; cursor:pointer; padding:12px 6px; }
+  .wordrow .del{ border:none; background:none; color:var(--rust); font-size:16px; cursor:pointer; padding:12px 6px; flex-shrink: 0; }
 
   .empty{ text-align:center; padding:40px 10px; color:var(--ink-soft); }
   .empty .big{font-size:34px; margin-bottom:8px;}
@@ -141,12 +149,9 @@
 
   .postcard .textzone{ padding:16px 18px 20px; border-top:1px dashed var(--line); text-align:center; background: var(--white); display:flex; flex-direction:column; justify-content:center; min-height:120px;}
   .postcard .en-word{ font-family:'Fraunces', serif; font-weight:700; font-size:26px; }
-  
-  /* Arka Yüz (Çift tıkla açılan bilgiler) */
   .postcard .tr-word{ margin-top:8px; font-size:18px; font-weight:600; color:var(--rust); opacity:0; transition:opacity .2s ease; }
-  .postcard .sentence { margin-top:14px; font-size:14px; font-style:italic; color:var(--ink); font-weight:500; opacity:0; transition:opacity .2s ease; line-height:1.3; }
-  .postcard .tr-sentence { margin-top:4px; font-size:12px; color:var(--ink-soft); opacity:0; transition:opacity .2s ease; line-height:1.2; }
-  
+  .postcard .sentence { margin-top:10px; font-size:13px; font-style:italic; color:var(--ink-soft); opacity:0; transition:opacity .2s ease; }
+  .postcard .tr-sentence { margin-top:4px; font-size:12px; color:var(--ink); opacity:0; transition:opacity .2s ease; line-height:1.2; font-weight:500;}
   .postcard.flipped .tr-word, .postcard.flipped .sentence, .postcard.flipped .tr-sentence {opacity:1;}
   
   .hint{ text-align:center; font-size:11px; color:var(--ink-soft); margin-top:6px; }
@@ -308,7 +313,6 @@ function loadData(){
         try { parsedW = JSON.parse(resW); } catch(e){}
     }
     if (!Array.isArray(parsedW)) parsedW = [];
-    // Eski kelimelere trSentence (cümle çevirisi) özelliğini de ekleyerek uyumlu yapıyoruz
     words = parsedW.map(w => ({ sentence: '', trSentence: '', tags: [], interval: 0, ease: 2.5, nextReview: Date.now(), ...w }));
 
     const resS = localStorage.getItem(STATS_KEY);
@@ -576,11 +580,13 @@ function openPreviewModal(id) {
   `;
   
   const pBtn = document.getElementById('previewTtsBtn');
-  pBtn.addEventListener('pointerdown', e => e.stopPropagation()); 
-  pBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      speakWord(`${w.en}. ${w.sentence || ''}`, this);
-  });
+  // Önizlemede ses butonunu güvene alıyoruz
+  const playVoice = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      speakWord(`${w.en}. ${w.sentence || ''}`, pBtn);
+  };
+  pBtn.addEventListener('touchstart', playVoice, {passive: false});
+  pBtn.addEventListener('mousedown', playVoice);
 
   const cropBtn = document.getElementById('cropFromPreviewBtn');
   cropBtn.style.display = w.img ? 'block' : 'none';
@@ -737,7 +743,7 @@ function renderWordsTab(){
           <button class="primary-btn" id="addWordBtn">Kartı ekle</button>
         </div>
         <div class="card-panel">
-          <div class="section-title">Kelimelerim (${words.length}) <span style="font-size:11px; font-weight:normal; color:var(--ink-soft); float:right; margin-top:6px;">Kısa tıkla önizle, uzun bas düzenle</span></div>
+          <div class="section-title">Kelimelerim (${words.length}) <span style="font-size:11px; font-weight:normal; color:var(--ink-soft); float:right; margin-top:6px;">Tıkla önizle, basılı tut düzenle</span></div>
           <div id="wordList"></div>
         </div>
       `;
@@ -836,7 +842,6 @@ function renderWordsTab(){
             let pressTimer; let isLongPress = false; const id = row.dataset.id;
             row.addEventListener('contextmenu', e => e.preventDefault());
             
-            // Kısa Tık -> Önizleme, Uzun Bas -> Düzenle
             const startPress = () => { isLongPress = false; pressTimer = setTimeout(() => { isLongPress = true; openEditModal(id); }, 500); };
             const cancelPress = () => { if(pressTimer) clearTimeout(pressTimer); };
             
@@ -961,7 +966,7 @@ function renderReviewTab(){
   
   const qText = card._reverse ? card.tr : card.en;
   const aText = card._reverse ? card.en : card.tr;
-  const hintText = card._reverse ? "Çevirmek için çift dokun" : "Çevirmek için çift dokun";
+  const hintText = "Çevirmek için çift dokun";
 
   main.innerHTML = `
     <div class="progress-bar"><div style="width:${pct}%"></div></div>
@@ -994,19 +999,23 @@ function renderReviewTab(){
     </div>
   `;
 
-  // SES BUTONU KORUMASI: Kaydırmayı engeller ve direk sesi çalar
-  const btn = document.getElementById('ttsPlayBtn');
-  btn.addEventListener('pointerdown', e => e.stopPropagation());
-  btn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      speakWord(`${card.en}. ${card.sentence || ''}`, this);
-  });
+  // SES BUTONU (ÇÖZÜM): Kaydırma (Swipe) algoritmasının tıklamayı yememesi için özel TouchStart eklendi
+  const ttsBtn = document.getElementById('ttsPlayBtn');
+  const playVoice = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      speakWord(`${card.en}. ${card.sentence || ''}`, ttsBtn);
+  };
+  ttsBtn.addEventListener('touchstart', playVoice, {passive: false});
+  ttsBtn.addEventListener('mousedown', playVoice);
 
-  // ÇİFT DOKUNARAK ÇEVİRME MANTIĞI
+  // ÇİFT TIKLAMA İLE ÇEVİRME
   const postcardEl = document.getElementById('postcard');
   let lastTap = 0;
   postcardEl.addEventListener('click', (e) => {
-      if(e.target.closest('.tts-btn')) return; // Sese basıldıysa çevirme
+      if (dragMoved) return;
+      const target = e.target.nodeType === 3 ? e.target.parentNode : e.target;
+      if (target.closest('.tts-btn')) return; // Ses butonuna tıklandıysa çevirme
+
       const currentTime = new Date().getTime();
       const tapLength = currentTime - lastTap;
       if (tapLength < 300 && tapLength > 0) {
@@ -1023,8 +1032,9 @@ let dragMoved = false;
 function attachSwipe(el){
   let startX=0, startY=0, curX=0, curY=0, dragging=false; dragMoved = false;
   function onDown(e, x, y){ 
-    if(e.target.closest('.tts-btn')) return; // Dokunma ses butonundaysa kaydırmayı başlatma!
-    dragging = true; dragMoved = false; startX = x; startY = y; curX = x; curY = y; el.style.transition = 'none'; 
+      const target = e.target.nodeType === 3 ? e.target.parentNode : e.target;
+      if (target.closest('.tts-btn')) return; // Parmak ses butonunun üstündeyse KESİNLİKLE kaydırmayı başlatma
+      dragging = true; dragMoved = false; startX = x; startY = y; curX = x; curY = y; el.style.transition = 'none'; 
   }
   function onMove(x,y){
     if(!dragging) return; curX = x; curY = y;
@@ -1045,15 +1055,14 @@ function attachSwipe(el){
     else if(dx < -90){ el.style.transform = `translateX(-600px) rotate(-20deg)`; setTimeout(()=>resolveCard('left'), 180); } 
     else { el.style.transform = ''; el.querySelectorAll('.swipe-tag').forEach(t => t.style.opacity = 0); }
   }
-  
   el.addEventListener('pointerdown', e=>{ 
-      if (e.target.closest('.tts-btn')) return; // Ses butonuna basılıyorsa kilit koyma
+      const target = e.target.nodeType === 3 ? e.target.parentNode : e.target;
+      if (target.closest('.tts-btn')) return; // Dokunma ses butonuna yapıldıysa pointerCapture yapma!
       el.setPointerCapture(e.pointerId); 
       onDown(e, e.clientX, e.clientY); 
   });
   el.addEventListener('pointermove', e=>{ onMove(e.clientX, e.clientY); });
-  el.addEventListener('pointerup', e=>{ onUp(); }); 
-  el.addEventListener('pointercancel', e=>{ onUp(); });
+  el.addEventListener('pointerup', e=>{ onUp(); }); el.addEventListener('pointercancel', e=>{ onUp(); });
 }
 
 window.resolveCard = function(action){
