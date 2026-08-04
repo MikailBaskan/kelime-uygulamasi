@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<!-- Android PWA Meta Etiketleri -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Kelime Kartpostalı — İngilizce Öğren</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#F3ECD9">
@@ -17,7 +21,10 @@
     --gold:#F1C40F; --flame:#E74C3C;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{height:100%; height:100dvh; overscroll-behavior-y: none;} 
+  
+  /* Mobilde yaylanmayı ve Android geri kaydırma (swipe) jestini tamamen engeller */
+  html,body{height:100%; height:100dvh; overscroll-behavior: none;} 
+  
   body{
     margin:0; background:var(--paper);
     background-image: radial-gradient(circle at 1px 1px, rgba(31,42,68,0.06) 1px, transparent 1px);
@@ -193,7 +200,10 @@
     </div>
 
     <label class="field">Türkçe anlamı</label>
-    <input type="text" id="editTr">
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="editTr" style="flex:1;">
+      <span id="editTrStatusIcon" style="width:24px; display:flex; align-items:center; justify-content:center; font-size:18px;"></span>
+    </div>
 
     <label class="field">Örnek Cümle (İngilizce)</label>
     <div style="display:flex; gap:8px;">
@@ -250,6 +260,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <script>
+/* ---------------- KEYBOARD HELPER FOR ANDROID ---------------- */
+function closeKeyboard() {
+  if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+}
+
 /* ---------------- DATA & GAMIFICATION ---------------- */
 const STORE_KEY = 'kelimeKartpostali_veriler';
 const STATS_KEY = 'kelimeKartpostali_stats';
@@ -262,11 +279,7 @@ function loadData(){
   try{
     const resW = localStorage.getItem(STORE_KEY);
     words = resW ? JSON.parse(resW) : [];
-    
-    // Geçmiş sürümlerden gelen kelimelere yeni özellikleri (Spaced Repetition vb.) ekleyelim
-    words = words.map(w => ({
-       sentence: '', tags: [], interval: 0, ease: 2.5, nextReview: Date.now(), ...w 
-    }));
+    words = words.map(w => ({ sentence: '', tags: [], interval: 0, ease: 2.5, nextReview: Date.now(), ...w }));
 
     const resS = localStorage.getItem(STATS_KEY);
     if(resS) stats = JSON.parse(resS);
@@ -293,11 +306,8 @@ function checkStreak() {
       const diffTime = Math.abs(now - last);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
       
-      if (diffDays === 1) {
-        stats.streak += 1;
-      } else if (diffDays > 1) {
-        stats.streak = 1; // Seri bozuldu
-      }
+      if (diffDays === 1) stats.streak += 1;
+      else if (diffDays > 1) stats.streak = 1;
     } else {
       stats.streak = 1;
     }
@@ -308,7 +318,6 @@ function checkStreak() {
 
 function addXP(amount) {
   stats.xp += amount;
-  // Basit Seviye formülü: Level 1 = 0 XP, Level 2 = 50 XP, Level 3 = 150 XP, Level 4 = 300 XP
   stats.level = Math.floor(Math.sqrt(stats.xp / 50)) + 1;
   saveData();
 }
@@ -354,7 +363,21 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
   });
 });
 
-/* ---------------- API CALLS & TTS ---------------- */
+/* ---------------- API CALLS, TRANSLATION & TTS ---------------- */
+
+async function autoTranslateWord(word) {
+    try {
+        const validRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+        if (!validRes.ok) return { error: true }; 
+        const transRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(word)}`);
+        const transData = await transRes.json();
+        const translation = transData[0][0][0];
+        return { error: false, translation: translation };
+    } catch (e) {
+        return { error: true };
+    }
+}
+
 async function fetchExampleSentence(word, btnEl) {
   if(!word) return "";
   const originalHtml = btnEl.innerHTML;
@@ -364,7 +387,6 @@ async function fetchExampleSentence(word, btnEl) {
     if(!res.ok) throw new Error();
     const data = await res.json();
     let sentence = "";
-    // JSON içindeki ilk example'ı bulmaya çalışıyoruz
     for(let meaning of data[0].meanings) {
         for(let def of meaning.definitions) {
             if(def.example) { sentence = def.example; break; }
@@ -381,11 +403,10 @@ async function fetchExampleSentence(word, btnEl) {
 
 function speakWord(text) {
   if(!text) return;
-  // Varsa önceki okumayı iptal et
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'en-US';
-  u.rate = 0.9; // Biraz yavaş ve anlaşılır okusun
+  u.rate = 0.9; 
   window.speechSynthesis.speak(u);
 }
 
@@ -409,6 +430,7 @@ document.addEventListener('paste', (e) => {
 
 let cropper = null; let cropTarget = null; let cropWordId = null;
 function openCropper(source, target, wordId = null) {
+  closeKeyboard();
   cropTarget = target; cropWordId = wordId;
   const image = document.getElementById('cropImage');
   const modal = document.getElementById('cropModal');
@@ -462,6 +484,7 @@ window.openCropperForWord = function(wordId) {
 /* ---------------- PREVIEW MODAL ---------------- */
 let previewWordId = null;
 function openPreviewModal(id) {
+  closeKeyboard();
   const w = words.find(x => x.id === id);
   if(!w) return;
   previewWordId = id;
@@ -491,11 +514,27 @@ document.getElementById('cropFromPreviewBtn').addEventListener('click', () => {
 /* ---------------- EDIT MODAL ---------------- */
 let editingWordId = null; let editPendingImg = null;
 document.getElementById('closeEditBtn').addEventListener('click', () => document.getElementById('editModal').classList.remove('active'));
+
 document.getElementById('editSearchGoogleBtn').addEventListener('click', () => {
   const word = document.getElementById('editEn').value.trim();
   if(!word) return showToast('Önce bir kelime yazmalısın!');
   window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(word)}`, '_blank');
 });
+
+document.getElementById('editTr').addEventListener('focus', async () => {
+  const word = document.getElementById('editEn').value.trim();
+  const trInput = document.getElementById('editTr');
+  const trStatus = document.getElementById('editTrStatusIcon');
+  
+  if(word && (trInput.value.trim() === '' || trInput.dataset.lastEn !== word)) {
+      trStatus.innerHTML = '<span class="loading-spinner"></span>';
+      const res = await autoTranslateWord(word);
+      if(res.error) { trStatus.innerHTML = '❌'; } 
+      else { trInput.value = res.translation.toLowerCase(); trStatus.innerHTML = '✅'; trInput.dataset.lastEn = word; }
+  }
+});
+document.getElementById('editEn').addEventListener('input', () => { document.getElementById('editTrStatusIcon').innerHTML = ''; });
+
 document.getElementById('editAutoSentenceBtn').addEventListener('click', async (e) => {
   const word = document.getElementById('editEn').value.trim();
   if(!word) return showToast('Önce İngilizce kelimeyi yazın!');
@@ -533,14 +572,18 @@ document.getElementById('saveEditBtn').addEventListener('click', () => {
     saveData(); showToast('Kart güncellendi ✓'); renderWordsTab();
   }
   document.getElementById('editModal').classList.remove('active');
+  closeKeyboard();
 });
 
 function openEditModal(id) {
+  closeKeyboard();
   const word = words.find(w => w.id === id);
   if(!word) return;
   editingWordId = id; editPendingImg = word.img;
   document.getElementById('editEn').value = word.en;
   document.getElementById('editTr').value = word.tr;
+  document.getElementById('editTrStatusIcon').innerHTML = ''; 
+  document.getElementById('editTr').dataset.lastEn = word.en; 
   document.getElementById('editSentence').value = word.sentence || '';
   document.getElementById('editTags').value = (word.tags || []).join(', ');
   
@@ -566,7 +609,10 @@ function renderWordsTab(){
       </div>
 
       <label class="field">Türkçe anlamı</label>
-      <input type="text" id="inTr" placeholder="örn. elma">
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="inTr" placeholder="Otomatik çeviri için tıkla" style="flex:1;">
+        <span id="trStatusIcon" style="width:24px; display:flex; align-items:center; justify-content:center; font-size:18px;"></span>
+      </div>
 
       <label class="field">Örnek Cümle (İsteğe Bağlı)</label>
       <div style="display:flex; gap:8px;">
@@ -594,6 +640,21 @@ function renderWordsTab(){
       <div id="wordList"></div>
     </div>
   `;
+
+  const inTr = document.getElementById('inTr');
+  const inEn = document.getElementById('inEn');
+  const trStatus = document.getElementById('trStatusIcon');
+  
+  inTr.addEventListener('focus', async () => {
+    const word = inEn.value.trim();
+    if(word && (inTr.value.trim() === '' || inTr.dataset.lastEn !== word)) {
+        trStatus.innerHTML = '<span class="loading-spinner"></span>';
+        const res = await autoTranslateWord(word);
+        if(res.error) { trStatus.innerHTML = '❌'; } 
+        else { inTr.value = res.translation.toLowerCase(); trStatus.innerHTML = '✅'; inTr.dataset.lastEn = word; }
+    }
+  });
+  inEn.addEventListener('input', () => { trStatus.innerHTML = ''; });
 
   document.getElementById('searchGoogleBtn').addEventListener('click', () => {
     const word = document.getElementById('inEn').value.trim();
@@ -634,6 +695,7 @@ function renderWordsTab(){
       nextReview: Date.now(), interval: 0, ease: 2.5
     });
     pendingImg = null; saveData(); showToast('Kart eklendi ✓'); renderWordsTab(); updateGamificationUI();
+    closeKeyboard();
   });
 
   const listEl = document.getElementById('wordList');
@@ -689,12 +751,9 @@ let session = null;
 function buildSessionConfigView(){
   const main = document.getElementById('main');
   
-  // Benzersiz etiketleri (kategorileri) topla
   const allTags = new Set();
   words.forEach(w => { if(w.tags) w.tags.forEach(t => allTags.add(t)); });
   const tagsHtml = Array.from(allTags).map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-
-  // Tekrar zamanı gelenleri (Spaced Repetition due) sayalım
   const dueCount = words.filter(w => w.nextReview <= Date.now()).length;
 
   main.innerHTML = `
@@ -723,6 +782,7 @@ function buildSessionConfigView(){
   `;
   if(words.length>0){
     document.getElementById('startSessionBtn').addEventListener('click', ()=>{
+      closeKeyboard();
       const filter = document.getElementById('sessionFilter').value;
       let pool = [];
       if (filter === 'DUE') pool = words.filter(w => w.nextReview <= Date.now());
@@ -816,7 +876,6 @@ function renderReviewTab(){
     </div>
   `;
 
-  // TTS Butonu Tıklaması (Kaydırmayı engellemek için stopPropagation)
   document.getElementById('ttsPlayBtn').addEventListener('click', (e) => {
     e.stopPropagation();
     speakWord(`${card.en}. ${card.sentence || ''}`);
@@ -871,7 +930,6 @@ window.resolveCard = function(action){
   const dayMs = 24 * 60 * 60 * 1000;
   
   if(action === 'down') {
-    // TAM ÖĞRENİLDİ -> SM-2 Algoritması (Aralığı genişlet)
     actualCard.correct += 1;
     actualCard.interval = actualCard.interval === 0 ? 1 : (actualCard.interval === 1 ? 3 : Math.round(actualCard.interval * actualCard.ease));
     actualCard.ease = Math.min(3.0, actualCard.ease + 0.1);
@@ -879,29 +937,26 @@ window.resolveCard = function(action){
     
     session.finishedIds.add(actualCard.id);
     session.correctCount += 1;
-    addXP(10); // XP Kazan
-    showToast('+10 XP ✨');
+    addXP(10); showToast('+10 XP ✨');
   } 
   else if (action === 'right') {
-    // ÖĞRENİLDİ -> Aynı oturumda biraz sonra tekrar sor, aralığı çok az artır
     actualCard.correct += 1;
     actualCard.interval = Math.max(1, actualCard.interval);
-    actualCard.nextReview = now + (actualCard.interval * dayMs * 0.5); // Yarım aralık
+    actualCard.nextReview = now + (actualCard.interval * dayMs * 0.5); 
     
     const insertAt = Math.min(session.queue.length, session.pos + 1 + 10);
     session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: Math.random() > 0.5 });
     addXP(2);
   } 
   else if (action === 'left') {
-    // ÖĞRENİLMEDİ -> Başa sar, zorluğu artır
     actualCard.wrong += 1;
     actualCard.ease = Math.max(1.3, actualCard.ease - 0.2);
-    actualCard.interval = 0; // Başa dön
-    actualCard.nextReview = now; // Hemen tekrar
+    actualCard.interval = 0; 
+    actualCard.nextReview = now; 
     
     session.wrongCount += 1;
     const insertAt = Math.min(session.queue.length, session.pos + 1 + 5);
-    session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: false }); // Yanlış bildiğini düz sor
+    session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: false }); 
   }
 
   saveData(); session.pos += 1; renderReviewTab();
@@ -947,6 +1002,9 @@ function renderStatsTab(){
     
     <div class="card-panel">
       <div class="section-title">Verileri Yedekle</div>
+      <p style="font-size:12px;color:var(--ink-soft);margin-top:-6px;">
+        Kelimelerin sadece bu cihazda kayıtlı. Başka bir cihaza taşımak veya verilerini güvende tutmak için yedekleyebilirsin.
+      </p>
       <div class="backup-controls">
           <button class="backup-btn" id="exportBtn">⬇️ Dışa Aktar</button>
           <label class="backup-btn" style="text-align:center;"> ⬆️ İçe Aktar <input type="file" id="importFile" accept=".json" style="display:none"> </label>
@@ -956,7 +1014,6 @@ function renderStatsTab(){
   
   document.getElementById('exportBtn').addEventListener('click', ()=>{
       if(words.length === 0) return showToast("Yedeklenecek kelime yok!");
-      // Verileri hem words hem stats olarak paketle
       const backupData = { words: words, stats: stats };
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
       const a = document.createElement('a'); a.href = dataStr; a.download = "kelime_kartpostali_yedek.json";
@@ -970,19 +1027,22 @@ function renderStatsTab(){
         reader.onload = function(evt) {
             try {
                 const importedData = JSON.parse(evt.target.result);
-                if(importedData.words) {
-                    words = importedData.words;
-                    stats = importedData.stats || { xp: 0, streak: 0, lastActive: null, level: 1 };
-                } else if (Array.isArray(importedData)) {
-                    // Eski yedek uyumluluğu
-                    words = importedData;
-                }
+                if(importedData.words) { words = importedData.words; stats = importedData.stats || { xp: 0, streak: 0, lastActive: null, level: 1 }; } 
+                else if (Array.isArray(importedData)) { words = importedData; }
                 saveData(); showToast("Veriler içe aktarıldı ✓"); renderStatsTab(); 
             } catch (err) { showToast("Dosya okuma hatası!"); }
         };
         reader.readAsText(file);
     }
   });
+}
+
+/* ---------------- MASTER RENDER ---------------- */
+function render(){
+  updateHeaderBadge();
+  if(currentTab==='words') renderWordsTab();
+  else if(currentTab==='review') renderReviewTab();
+  else if(currentTab==='stats') renderStatsTab();
 }
 
 /* ---------------- INIT ---------------- */
