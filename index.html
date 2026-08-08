@@ -1342,7 +1342,10 @@ function startSession(poolItems, n, filter){
   const selected = shuffle(poolItems).slice(0, n);
   const pool = selected.map(w => ({ id: w.id, reverse: Math.random() > 0.5 }));
   session = {
-    queue: pool, pos: 0, totalUnique: pool.length, correctCount: 0, wrongCount: 0, finishedIds: new Set(),
+    queue: pool, pos: 0, totalUnique: pool.length, correctCount: 0, wrongCount: 0,
+    // learnedIds: şu an "öğrenildi" veya "tam öğrenildi" olarak işaretli kelimelerin id'leri.
+    // Bir kelime "öğrenilmedi" olarak işaretlenirse buradan çıkarılır (ilerleme geri düşer).
+    learnedIds: new Set(),
     filter: filter || 'ALL', n: n, originalIds: selected.map(w => w.id)
   };
   renderReviewTab();
@@ -1360,14 +1363,14 @@ function renderReviewTab(){
   if(!session) return buildSessionConfigView();
   const card = currentSessionCard();
   
-  if(session.finishedIds.size >= session.totalUnique || !card) {
+  if(session.learnedIds.size >= session.totalUnique || !card) {
     main.innerHTML = `
       <div class="card-panel finish-panel">
         <div class="big">🎉</div>
         <h2>Tebrikler! Oturum Başarılı</h2>
         <p>Bu oturumdaki tüm kelimeleri öğrendin. İstatistiklerin güncellendi ve XP kazandın.</p>
         <div class="stat-grid">
-          <div class="stat-box"><div class="num">${session.finishedIds.size}</div><div class="lbl">öğrenilen</div></div>
+          <div class="stat-box"><div class="num">${session.learnedIds.size}</div><div class="lbl">öğrenilen</div></div>
           <div class="stat-box"><div class="num">${session.wrongCount}</div><div class="lbl">hata (tekrar)</div></div>
         </div>
         <button class="primary-btn outline" id="exitFinishBtn">✕ Çık</button>
@@ -1400,7 +1403,7 @@ function renderReviewTab(){
     return;
   }
 
-  const doneCount = session.finishedIds.size;
+  const doneCount = session.learnedIds.size;
   const pct = Math.round((doneCount / session.totalUnique) * 100);
   
   const qText = card._reverse ? card.tr : card.en;
@@ -1627,7 +1630,8 @@ window.resolveCard = function(action){
     actualCard.ease = Math.min(3.0, actualCard.ease + 0.1);
     actualCard.nextReview = now + (actualCard.interval * dayMs);
     
-    session.finishedIds.add(actualCard.id);
+    // Tam öğrenildi: kalıcı olarak öğrenilmiş sayılır, bu oturumda bir daha karşımıza çıkmaz.
+    session.learnedIds.add(actualCard.id);
     session.correctCount += 1;
     addXP(10); showToast('+10 XP ✨');
   } 
@@ -1636,6 +1640,8 @@ window.resolveCard = function(action){
     actualCard.interval = Math.max(1, actualCard.interval || 1);
     actualCard.nextReview = now + (actualCard.interval * dayMs * 0.5); 
     
+    // Öğrenildi: ilerleme çubuğuna eklenir (henüz kalıcı değil, tekrar sorulabilir).
+    session.learnedIds.add(actualCard.id);
     const insertAt = Math.min(session.queue.length, session.pos + 1 + 10);
     session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: Math.random() > 0.5 });
     addXP(2);
@@ -1646,6 +1652,8 @@ window.resolveCard = function(action){
     actualCard.interval = 0; 
     actualCard.nextReview = now; 
     
+    // Öğrenilmedi: daha önce "öğrenildi" işaretliyse ilerlemeden bir azaltılır.
+    session.learnedIds.delete(actualCard.id);
     session.wrongCount += 1;
     const insertAt = Math.min(session.queue.length, session.pos + 1 + 5);
     session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: false }); 
