@@ -127,7 +127,7 @@
     border:2px solid var(--line); box-shadow:0 4px 12px rgba(0,0,0,0.15); 
     display:flex; align-items:center; justify-content:center; 
     font-size:26px; 
-    cursor:pointer; z-index:10; transition:all 0.2s ease;
+    cursor:pointer; z-index:15; transition:all 0.2s ease;
   }
   .tts-btn:active { transform:scale(0.90); }
   
@@ -150,7 +150,7 @@
   
   .hint{ text-align:center; font-size:11px; color:var(--ink-soft); margin-top:6px; }
   
-  .swipe-tag{ position:absolute; padding:6px 12px; font-family:'Space Mono'; font-weight:700; font-size:13px; border-radius:6px; border:2px solid; opacity:0; text-transform:uppercase; letter-spacing:1px; z-index: 10; }
+  .swipe-tag{ position:absolute; padding:6px 12px; font-family:'Space Mono'; font-weight:700; font-size:13px; border-radius:6px; border:2px solid; opacity:0; text-transform:uppercase; letter-spacing:1px; z-index: 10; pointer-events:none; }
   .swipe-tag.learned { top: 22px; left: 18px; color: var(--teal); border-color: var(--teal); transform: rotate(-8deg); background: rgba(255,255,255,0.9); }
   .swipe-tag.not-learned { top: 22px; right: 18px; color: var(--rust); border-color: var(--rust); transform: rotate(8deg); background: rgba(255,255,255,0.9); }
   .swipe-tag.fully-learned { top: 15px; left: 50%; transform: translateX(-50%); color: var(--ink); border-color: var(--ink); background: var(--white); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
@@ -394,6 +394,12 @@ function showToast(msg){
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>t.classList.remove('show'), 2000);
 }
+
+// iOS Safari, dokunmatik cihazlarda en az bir touchstart dinleyicisi olmadan
+// bazı elementlerde :active (basma) CSS durumunu uygulamayabiliyor.
+// Bu boş dinleyici, hoparlör butonu gibi elemanlardaki basma animasyonunun
+// güvenilir şekilde çalışmasını sağlar.
+document.addEventListener('touchstart', function(){}, {passive:true});
 
 let currentTab = 'words';
 document.querySelectorAll('nav.tabs button').forEach(btn=>{
