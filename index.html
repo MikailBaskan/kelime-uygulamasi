@@ -19,6 +19,15 @@
     --stamp:#E1A940; --teal:#2F8F7A; --rust:#B5482F; --line:#D8CDA9; --white:#FFFDF6;
     --gold:#F1C40F; --flame:#E74C3C;
   }
+  body.dark-mode{
+    --paper:#1B1F2B; --paper-dark:#12151F; --ink:#ECE9DD; --ink-soft:#9AA3BD;
+    --stamp:#E1A940; --teal:#3FB39A; --rust:#E07A57; --line:#333B52; --white:#242A3C;
+    --gold:#F1C40F; --flame:#FF6B57;
+  }
+  body.dark-mode{ background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 1px); }
+  body, #app, .card-panel, .postcard, nav.tabs, .modal-content, input, select, .badge, .backup-btn, .icon-toggle-btn{
+    transition: background-color .3s ease, color .3s ease, border-color .3s ease;
+  }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   
   html, body { height: 100%; min-height: -webkit-fill-available; margin: 0; padding: 0; overscroll-behavior: none; }
@@ -48,6 +57,12 @@
   .badge.streak { color:var(--flame); }
   .badge.level { color:var(--ink); }
   .badge.words { color:var(--teal); }
+
+  .icon-toggle-btn{ border:1px solid var(--line); background:var(--white); border-radius:50%; width:34px; height:34px; font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
+  .icon-toggle-btn:active{ transform:scale(0.92); }
+
+  .settings-row{ display:flex; align-items:center; gap:10px; margin-top:10px; }
+  input[type=range]{ flex:1; accent-color:var(--teal); height:4px; }
 
   main{flex:1; padding:16px 16px 90px; overflow-y:auto; -webkit-overflow-scrolling: touch;}
   
@@ -217,10 +232,13 @@
   <header>
     <div class="header-top">
       <h1>Kelime <span>Kartpostalı</span></h1>
-      <div class="gamification-bar">
-        <div class="badge streak" title="Günlük Seri">🔥 <span id="streakUI">0</span></div>
-        <div class="badge level" title="Seviye">🏆 Lvl <span id="levelUI">1</span></div>
-        <div class="badge words" title="Öğrenilen Kartlar">✨ <span id="xpUI">0</span> XP</div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="gamification-bar">
+          <div class="badge streak" title="Günlük Seri">🔥 <span id="streakUI">0</span></div>
+          <div class="badge level" title="Seviye">🏆 Lvl <span id="levelUI">1</span></div>
+          <div class="badge words" title="Öğrenilen Kartlar">✨ <span id="xpUI">0</span> XP</div>
+        </div>
+        <button class="icon-toggle-btn" id="darkModeToggle" title="Karanlık Mod">🌙</button>
       </div>
     </div>
   </header>
@@ -316,9 +334,31 @@ function closeKeyboard() {
 /* ---------------- DATA & GAMIFICATION ---------------- */
 const STORE_KEY = 'kelimeKartpostali_veriler';
 const STATS_KEY = 'kelimeKartpostali_stats';
+const DARK_MODE_KEY = 'kelimeKartpostali_darkMode';
+const TTS_RATE_KEY = 'kelimeKartpostali_ttsRate';
 
 let words = []; 
 let stats = { xp: 0, streak: 0, lastActive: null, level: 1 };
+
+/* ---------------- AYARLAR: KARANLIK MOD ---------------- */
+let darkModeEnabled = localStorage.getItem(DARK_MODE_KEY) === '1';
+function applyDarkMode(isDark){
+  document.body.classList.toggle('dark-mode', isDark);
+  const btn = document.getElementById('darkModeToggle');
+  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute('content', isDark ? '#1B1F2B' : '#F3ECD9');
+}
+applyDarkMode(darkModeEnabled);
+document.getElementById('darkModeToggle').addEventListener('click', () => {
+  darkModeEnabled = !darkModeEnabled;
+  localStorage.setItem(DARK_MODE_KEY, darkModeEnabled ? '1' : '0');
+  applyDarkMode(darkModeEnabled);
+});
+
+/* ---------------- AYARLAR: SESLİ OKUMA HIZI ---------------- */
+let ttsRate = parseFloat(localStorage.getItem(TTS_RATE_KEY)) || 0.85;
+if (isNaN(ttsRate) || ttsRate < 0.5 || ttsRate > 1.5) ttsRate = 0.85;
 
 function loadData(){
   try {
@@ -478,20 +518,36 @@ async function fetchExampleSentence(word, btnEl) {
   }
 }
 
-let globalUtterance = null; 
+let globalUtterance = null;
+let cachedVoices = [];
+
+// Ses listesini erkenden ısıt (bazı tarayıcılarda/Android WebView'lerde ilk çağrıda boş dönebiliyor)
+function warmUpVoices(){
+  if (typeof window.speechSynthesis === 'undefined') return;
+  cachedVoices = window.speechSynthesis.getVoices();
+}
+warmUpVoices();
+
 function speakWord(text, btnElement) {
-  if(!text || typeof window.speechSynthesis === 'undefined') return;
-  
+  if(!text) return;
+
+  if (typeof window.speechSynthesis === 'undefined') {
+    showToast('Cihazınız sesli okumayı desteklemiyor 🔇');
+    return;
+  }
+
   // Önceki sesleri iptal et
   window.speechSynthesis.cancel(); 
 
   // Yeni ses nesnesini oluştur (Gecikme olmadan senkronize oluşturuyoruz)
   globalUtterance = new SpeechSynthesisUtterance(text);
   globalUtterance.lang = 'en-US';
-  globalUtterance.rate = 0.85; 
+  globalUtterance.rate = ttsRate; 
 
-  const voices = window.speechSynthesis.getVoices();
-  const usVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Google'));
+  if (!cachedVoices || cachedVoices.length === 0) cachedVoices = window.speechSynthesis.getVoices();
+  const usVoice = cachedVoices.find(v => v.lang === 'en-US' && v.name.includes('Google'))
+                || cachedVoices.find(v => v.lang === 'en-US')
+                || cachedVoices.find(v => v.lang && v.lang.startsWith('en'));
   if(usVoice) globalUtterance.voice = usVoice;
 
   if (btnElement) {
@@ -503,12 +559,24 @@ function speakWord(text, btnElement) {
     globalUtterance.onerror = () => btnElement.classList.remove('playing'); 
   }
 
+  // Ses motoru cihazda kurulu değilse ya da başka bir sebeple çalışmazsa kullanıcıyı bilgilendir
+  globalUtterance.onerror = ((prevHandler) => (event) => {
+    if (typeof prevHandler === 'function') prevHandler(event);
+    if (event && event.error && event.error !== 'canceled' && event.error !== 'interrupted') {
+      showToast('Ses motoru bulunamadı, cihaz ayarlarınızı kontrol edin ⚠️');
+    }
+  })(globalUtterance.onerror);
+
   // Direk çal komutu gönder (Android Chrome'da kullanıcı etkileşimini kaybetmemek için setTimeout kaldırıldı)
-  window.speechSynthesis.speak(globalUtterance);
+  try {
+    window.speechSynthesis.speak(globalUtterance);
+  } catch(e) {
+    showToast('Ses çalınamadı, tekrar deneyin ⚠️');
+  }
 }
 
 window.speechSynthesis.onvoiceschanged = function() {
-    window.speechSynthesis.getVoices();
+    cachedVoices = window.speechSynthesis.getVoices();
 };
 
 /* ---------------- PASTE & CROPPER LOGIC ---------------- */
@@ -1174,7 +1242,7 @@ function renderReviewTab(){
           clickTimer = null;
 
           postcardEl.classList.add('flipped');
-          postcardEl.classList.add('expanded');
+          postcardEl.classList.toggle('expanded');
           updateHint();
       } else {
           // İlk tıklama -> tek tıklama olup olmadığını anlamak için bekle
@@ -1319,6 +1387,15 @@ function renderStatsTab(){
         </div>
         
         <div class="card-panel">
+          <div class="section-title">Ayarlar</div>
+          <label class="field" style="margin-top:0;">Sesli Okuma Hızı: <span id="ttsRateValue">${ttsRate.toFixed(2)}x</span></label>
+          <div class="settings-row">
+            <input type="range" id="ttsRateSlider" min="0.5" max="1.5" step="0.05" value="${ttsRate}">
+            <button class="backup-btn" id="ttsRateTestBtn" style="flex:0 0 auto; padding:8px 12px;">🔊 Dene</button>
+          </div>
+        </div>
+
+        <div class="card-panel">
           <div class="section-title">Verileri Yedekle</div>
           <p style="font-size:12px;color:var(--ink-soft);margin-top:-6px;">
             Kelimelerin sadece bu cihazda kayıtlı. Başka bir cihaza taşımak veya verilerini güvende tutmak için yedekleyebilirsin.
@@ -1330,6 +1407,22 @@ function renderStatsTab(){
         </div>
       `;
       
+      const ttsRateSlider = document.getElementById('ttsRateSlider');
+      const ttsRateValueEl = document.getElementById('ttsRateValue');
+      const ttsRateTestBtn = document.getElementById('ttsRateTestBtn');
+      if (ttsRateSlider) {
+        ttsRateSlider.addEventListener('input', (e) => {
+          ttsRate = parseFloat(e.target.value);
+          if (ttsRateValueEl) ttsRateValueEl.textContent = ttsRate.toFixed(2) + 'x';
+          localStorage.setItem(TTS_RATE_KEY, String(ttsRate));
+        });
+      }
+      if (ttsRateTestBtn) {
+        ttsRateTestBtn.addEventListener('click', () => {
+          speakWord('Hello! This is how I sound now.');
+        });
+      }
+
       document.getElementById('exportBtn').addEventListener('click', ()=>{
           if(words.length === 0) return showToast("Yedeklenecek kelime yok!");
           const backupData = { words: words, stats: stats };
