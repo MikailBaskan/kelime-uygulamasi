@@ -108,7 +108,7 @@
   .empty .big{font-size:34px; margin-bottom:8px;}
 
   /* Review Area */
-  .deck-wrap{ position:relative; height:60vh; max-height:520px; min-height:360px; margin-top:6px; }
+  .deck-wrap{ position:relative; height:60vh; max-height:520px; min-height:360px; margin-top:6px; perspective:1400px; }
   .progress-bar{ height:6px; background:var(--paper-dark); border-radius:99px; overflow:hidden; margin-bottom:14px; }
   .progress-bar > div{height:100%; background:var(--teal); transition:width .25s ease;}
   .postcard{
@@ -147,7 +147,26 @@
   .postcard .sentence { margin-top:10px; font-size:13px; font-style:italic; color:var(--ink-soft); opacity:0; transition:opacity .2s ease; }
   .postcard .tr-sentence { margin-top:4px; font-size:12px; color:var(--ink); opacity:0; transition:opacity .2s ease; line-height:1.2; font-weight:500;}
   .postcard.flipped .tr-word {opacity:1;}
-  .postcard.expanded .sentence, .postcard.expanded .tr-sentence {opacity:1;}
+
+  /* 3D KART ÇEVİRME (çift dokun): ön yüz = kelime/anlam, arka yüz = sadece örnek cümle */
+  .flipper{ position:absolute; inset:0; transform-style:preserve-3d; transition:transform .6s cubic-bezier(.4,.2,.2,1); }
+  .postcard.expanded .flipper{ transform:rotateY(180deg); }
+  .card-front, .card-back{ position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; display:flex; flex-direction:column; }
+  .card-back{ transform:rotateY(180deg); align-items:center; justify-content:center; padding:26px; text-align:center; }
+  .card-back .back-sentence{ font-size:17px; font-style:italic; line-height:1.7; color:var(--ink); }
+  .card-back .back-hint{ margin-top:16px; font-size:11px; color:var(--ink-soft); font-style:normal; }
+
+  .word-token{ position:relative; cursor:pointer; border-bottom:1px dashed var(--rust); padding:0 1px; }
+  .word-token.active{ color:var(--rust); }
+  .word-tooltip{
+    position:absolute; left:50%; bottom:100%; transform:translateX(-50%); margin-bottom:6px;
+    background:var(--ink); color:var(--white); font-size:11px; font-weight:600; font-style:normal;
+    padding:4px 8px; border-radius:6px; white-space:nowrap; box-shadow:0 4px 10px rgba(0,0,0,0.2); z-index:30;
+  }
+  .word-tooltip::after{
+    content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+    border:5px solid transparent; border-top-color:var(--ink);
+  }
   
   .hint{ text-align:center; font-size:11px; color:var(--ink-soft); margin-top:6px; }
   
@@ -870,6 +889,21 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<
 
 /* ---------------- RENDER: REVIEW TAB ---------------- */
 let session = null; 
+const wordTranslationCache = new Map();
+
+// Örnek cümledeki her kelimeyi ayrı ayrı dokunulabilir hale getirir.
+// Noktalama işaretleri ve boşluklar aynen korunur, sadece harf grupları sarmalanır.
+function buildTappableSentence(sentence) {
+  if (!sentence) return '';
+  const parts = sentence.split(/([A-Za-zÀ-ÖØ-öø-ÿ]+(?:'[A-Za-zÀ-ÖØ-öø-ÿ]+)?)/g);
+  return parts.map(part => {
+    if (/^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:'[A-Za-zÀ-ÖØ-öø-ÿ]+)?$/.test(part)) {
+      return `<span class="word-token" data-word="${escapeHtml(part)}">${escapeHtml(part)}</span>`;
+    }
+    return escapeHtml(part);
+  }).join('');
+}
+
 
 function buildSessionConfigView(){
   const main = document.getElementById('main');
@@ -980,16 +1014,22 @@ function renderReviewTab(){
     </div>
     <div class="deck-wrap">
       <div class="postcard" id="postcard">
-        <div class="stripe"></div>
         <button class="tts-btn" id="ttsPlayBtn">🔊</button>
-        <div class="imgzone">
-          ${card.img ? `<img src="${card.img}">` : autoEmoji(card.en)}
-        </div>
-        <div class="textzone">
-          <div class="en-word">${escapeHtml(qText || '')}</div>
-          <div class="tr-word">${escapeHtml(aText || '')}</div>
-          ${card.sentence ? `<div class="sentence">"${escapeHtml(card.sentence)}"</div>` : ''}
-          ${card.trSentence ? `<div class="tr-sentence">"${escapeHtml(card.trSentence)}"</div>` : ''}
+        <div class="flipper" id="flipper">
+          <div class="card-front">
+            <div class="stripe"></div>
+            <div class="imgzone">
+              ${card.img ? `<img src="${card.img}">` : autoEmoji(card.en)}
+            </div>
+            <div class="textzone">
+              <div class="en-word">${escapeHtml(qText || '')}</div>
+              <div class="tr-word">${escapeHtml(aText || '')}</div>
+            </div>
+          </div>
+          <div class="card-back">
+            <div class="back-sentence" id="backSentence"></div>
+            ${card.sentence ? `<div class="back-hint">Kelimeye dokun, Türkçesini gör</div>` : ''}
+          </div>
         </div>
         <div class="swipe-tag not-learned">ÖĞRENİLMEDİ</div>
         <div class="swipe-tag fully-learned">TAM ÖĞRENİLDİ</div>
@@ -1019,6 +1059,47 @@ function renderReviewTab(){
           speakWord(card.en, this);
       }
   });
+
+  // ARKA YÜZ: örnek cümleyi kelime kelime dokunulabilir hale getir
+  const backSentenceEl = document.getElementById('backSentence');
+  if (backSentenceEl) {
+    backSentenceEl.innerHTML = card.sentence ? `"${buildTappableSentence(card.sentence)}"` : '';
+
+    backSentenceEl.addEventListener('click', async (e) => {
+      const wordEl = e.target.closest('.word-token');
+      if (!wordEl) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const alreadyOpenTooltip = wordEl.querySelector('.word-tooltip');
+
+      // Diğer açık tooltip'leri kapat
+      backSentenceEl.querySelectorAll('.word-tooltip').forEach(t => { if (t.parentElement !== wordEl) t.remove(); });
+      backSentenceEl.querySelectorAll('.word-token.active').forEach(w => { if (w !== wordEl) w.classList.remove('active'); });
+
+      if (alreadyOpenTooltip) {
+        alreadyOpenTooltip.remove();
+        wordEl.classList.remove('active');
+        return;
+      }
+
+      wordEl.classList.add('active');
+      const tooltip = document.createElement('span');
+      tooltip.className = 'word-tooltip';
+      tooltip.textContent = '···';
+      wordEl.appendChild(tooltip);
+
+      const cleanWord = wordEl.dataset.word.toLowerCase();
+      if (wordTranslationCache.has(cleanWord)) {
+        tooltip.textContent = wordTranslationCache.get(cleanWord);
+        return;
+      }
+      const res = await autoTranslateWord(cleanWord);
+      if (!tooltip.isConnected) return; // Kullanıcı bu sırada başka bir şeye dokunmuş olabilir
+      if (res.error) { tooltip.textContent = '?'; }
+      else { tooltip.textContent = res.translation; wordTranslationCache.set(cleanWord, res.translation); }
+    });
+  }
 
   // KART ÇEVİRME MANTIĞI:
   // Tek tıkla: kart çevrilir, anlam (tr-word) gözükür.
