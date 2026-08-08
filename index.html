@@ -127,7 +127,7 @@
     border:2px solid var(--line); box-shadow:0 4px 12px rgba(0,0,0,0.15); 
     display:flex; align-items:center; justify-content:center; 
     font-size:26px; 
-    cursor:pointer; z-index:5; transition:all 0.2s ease;
+    cursor:pointer; z-index:10; transition:all 0.2s ease;
   }
   .tts-btn:active { transform:scale(0.90); }
   
@@ -405,7 +405,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
   });
 });
 
-/* ---------------- API CALLS, TRANSLATION & TTS (DÜZELTİLDİ) ---------------- */
+/* ---------------- API CALLS, TRANSLATION & TTS ---------------- */
 
 async function autoTranslateWord(text) {
     try {
@@ -455,26 +455,29 @@ let globalUtterance = null;
 function speakWord(text, btnElement) {
   if(!text || typeof window.speechSynthesis === 'undefined') return;
   
+  // Önceki sesleri iptal et
   window.speechSynthesis.cancel(); 
 
-  // Android Chrome bug'ını önlemek için 50ms gecikme eklendi
-  setTimeout(() => {
-      globalUtterance = new SpeechSynthesisUtterance(text);
-      globalUtterance.lang = 'en-US';
-      globalUtterance.rate = 0.85; 
+  // Yeni ses nesnesini oluştur (Gecikme olmadan senkronize oluşturuyoruz)
+  globalUtterance = new SpeechSynthesisUtterance(text);
+  globalUtterance.lang = 'en-US';
+  globalUtterance.rate = 0.85; 
 
-      const voices = window.speechSynthesis.getVoices();
-      const usVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Google'));
-      if(usVoice) globalUtterance.voice = usVoice;
+  const voices = window.speechSynthesis.getVoices();
+  const usVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Google'));
+  if(usVoice) globalUtterance.voice = usVoice;
 
-      if (btnElement) {
-        btnElement.classList.add('playing');
-        globalUtterance.onend = () => btnElement.classList.remove('playing'); 
-        globalUtterance.onerror = () => btnElement.classList.remove('playing'); 
-      }
+  if (btnElement) {
+    // Varsa eski animasyonları temizle
+    document.querySelectorAll('.tts-btn.playing').forEach(b => b.classList.remove('playing'));
+    
+    btnElement.classList.add('playing');
+    globalUtterance.onend = () => btnElement.classList.remove('playing'); 
+    globalUtterance.onerror = () => btnElement.classList.remove('playing'); 
+  }
 
-      window.speechSynthesis.speak(globalUtterance);
-  }, 50);
+  // Direk çal komutu gönder (Android Chrome'da kullanıcı etkileşimini kaybetmemek için setTimeout kaldırıldı)
+  window.speechSynthesis.speak(globalUtterance);
 }
 
 window.speechSynthesis.onvoiceschanged = function() {
@@ -577,12 +580,10 @@ function openPreviewModal(id) {
   `;
   
   const pBtn = document.getElementById('previewTtsBtn');
-  const playVoice = (e) => {
+  pBtn.addEventListener('click', function(e) {
       e.preventDefault(); e.stopPropagation();
-      speakWord(`${w.en}. ${w.sentence || ''}`, pBtn);
-  };
-  pBtn.addEventListener('touchstart', playVoice, {passive: false});
-  pBtn.addEventListener('mousedown', playVoice);
+      speakWord(`${w.en}. ${w.sentence || ''}`, this);
+  });
 
   const cropBtn = document.getElementById('cropFromPreviewBtn');
   cropBtn.style.display = w.img ? 'block' : 'none';
@@ -838,7 +839,6 @@ function renderWordsTab(){
             let pressTimer; let isLongPress = false; const id = row.dataset.id;
             row.addEventListener('contextmenu', e => e.preventDefault());
             
-            // DÜZELTİLDİ: Uzun Bas -> Düzenle
             const startPress = () => { isLongPress = false; pressTimer = setTimeout(() => { isLongPress = true; openEditModal(id); }, 500); };
             const cancelPress = () => { if(pressTimer) clearTimeout(pressTimer); };
             
@@ -847,7 +847,6 @@ function renderWordsTab(){
             row.addEventListener('touchmove', cancelPress, {passive: true});
             row.addEventListener('mousedown', startPress); row.addEventListener('mouseup', cancelPress); row.addEventListener('mouseleave', cancelPress);
             
-            // DÜZELTİLDİ: Kısa Tık -> Önizleme
             row.addEventListener('click', (e) => {
                 if(e.target.closest('.del')) return;
                 if(e.target.closest('.thumb.has-photo')) return openCropperForWord(id);
@@ -997,32 +996,34 @@ function renderReviewTab(){
     </div>
   `;
 
-  // DÜZELTİLDİ: Ses Butonu Koruması. Kaydırmayı engeller, sesi garantiler.
+  // SES BUTONU MANTIĞI: Sadece 'click' eventi ile çalışır ve kaydırmayı durdurur.
   const ttsBtn = document.getElementById('ttsPlayBtn');
-  const playReviewVoice = (e) => {
+  ttsBtn.addEventListener('click', function(e) {
       e.preventDefault(); 
       e.stopPropagation();
-      speakWord(`${card.en}. ${card.sentence || ''}`, ttsBtn);
-  };
-  ttsBtn.addEventListener('pointerdown', playReviewVoice);
-  ttsBtn.addEventListener('touchstart', playReviewVoice, {passive: false});
-  ttsBtn.addEventListener('mousedown', playReviewVoice);
+      speakWord(`${card.en}. ${card.sentence || ''}`, this);
+  });
 
-  // DÜZELTİLDİ: Çift Dokunarak Çevirme Mantığı
+  // KART ÇEVİRME: Çift Tıklama (Double Tap) Algoritması
   const postcardEl = document.getElementById('postcard');
-  let lastTap = 0;
+  let lastTapTime = 0;
+  
   postcardEl.addEventListener('click', (e) => {
-      if (dragMoved) return;
-      const target = e.target.nodeType === 3 ? e.target.parentNode : e.target;
-      if (target.closest('.tts-btn')) return; // Sese basıldıysa çevirme
+      if (dragMoved) return; // Kaydırma yapılıyorsa tıklamayı yoksay
+      if (e.target.closest('.tts-btn')) return; // Ses butonuna tıklandıysa yoksay
 
       const currentTime = new Date().getTime();
-      const tapLength = currentTime - lastTap;
+      const tapLength = currentTime - lastTapTime;
+      
+      // Ardışık iki tıklama (300ms içinde) gerçekleşirse kartı çevir
       if (tapLength < 300 && tapLength > 0) {
           postcardEl.classList.toggle('flipped');
           document.getElementById('flipHint').style.visibility = postcardEl.classList.contains('flipped') ? 'hidden' : 'visible';
+          // Tıklama sayacını sıfırla ki peş peşe çevirmelerde bug olmasın
+          lastTapTime = 0; 
+      } else {
+          lastTapTime = currentTime;
       }
-      lastTap = currentTime;
   });
 
   attachSwipe(postcardEl);
@@ -1031,17 +1032,19 @@ function renderReviewTab(){
 let dragMoved = false;
 function attachSwipe(el){
   let startX=0, startY=0, curX=0, curY=0, dragging=false; dragMoved = false;
+  
   function onDown(e, x, y){ 
-      const target = e.target.nodeType === 3 ? e.target.parentNode : e.target;
-      // DÜZELTİLDİ: Parmak hoparlördeyse KESİNLİKLE kaydırmayı başlatma!
-      if (target.closest('.tts-btn')) { e.stopPropagation(); return; }
+      // DOKUNMA KALKANI: Eğer parmak hoparlörün üstündeyse kaydırmayı HİÇ başlatma
+      if (e.target.closest('.tts-btn')) { return; }
       
       dragging = true; dragMoved = false; startX = x; startY = y; curX = x; curY = y; el.style.transition = 'none'; 
   }
+  
   function onMove(x,y){
     if(!dragging) return; curX = x; curY = y;
     const dx = x - startX; const dy = y - startY;
     if(Math.abs(dx) > 6 || Math.abs(dy) > 6) dragMoved = true;
+    
     const tagLearned = el.querySelector('.swipe-tag.learned');
     const tagNotLearned = el.querySelector('.swipe-tag.not-learned');
     const tagFully = el.querySelector('.swipe-tag.fully-learned');
@@ -1050,6 +1053,7 @@ function attachSwipe(el){
     if(dy > 30 && Math.abs(dy) > Math.abs(dx)) { el.style.transform = `translateY(${dy}px) rotate(${dx/30}deg)`; tagFully.style.opacity = Math.min(dy/100, 1); } 
     else { el.style.transform = `translateX(${dx}px) rotate(${dx/18}deg)`; if(dx > 0) tagLearned.style.opacity = Math.min(dx/100, 1); else tagNotLearned.style.opacity = Math.min(Math.abs(dx)/100, 1); }
   }
+  
   function onUp(){
     if(!dragging) return; dragging = false; const dx = curX - startX; const dy = curY - startY; el.style.transition = 'transform .3s ease';
     if(dy > 90 && Math.abs(dy) > Math.abs(dx)){ el.style.transform = `translateY(600px) rotate(10deg)`; setTimeout(()=>resolveCard('down'), 180); } 
@@ -1059,8 +1063,7 @@ function attachSwipe(el){
   }
   
   el.addEventListener('pointerdown', e=>{ 
-      const target = e.target.nodeType === 3 ? e.target.parentNode : e.target;
-      if (target.closest('.tts-btn')) return; // Pointer capture YAPMA!
+      if (e.target.closest('.tts-btn')) return; // Pointer kilidini ses butonundan uzak tut
       el.setPointerCapture(e.pointerId); 
       onDown(e, e.clientX, e.clientY); 
   });
