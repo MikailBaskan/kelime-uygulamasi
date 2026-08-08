@@ -298,7 +298,8 @@
 <div class="modal-overlay" id="previewModal" style="z-index: 120;">
   <div class="modal-content">
     <div class="deck-wrap" id="previewCardContainer"></div>
-    <div style="display:flex; gap:10px; margin-top:20px; width: 100%; max-width: 340px;">
+    <div class="hint" id="previewFlipHint" style="margin-top:8px;"></div>
+    <div style="display:flex; gap:10px; margin-top:12px; width: 100%; max-width: 340px;">
       <button class="primary-btn outline" id="closePreviewBtn" style="margin-top:0; background:var(--white);">Kapat</button>
       <button class="primary-btn teal" id="cropFromPreviewBtn" style="margin-top:0; display:none;">Fotoğrafı Kırp</button>
     </div>
@@ -495,26 +496,64 @@ async function validateAndTranslateWord(word) {
     }
 }
 
-async function fetchExampleSentence(word, btnEl) {
-  if(!word) return "";
-  const originalHtml = btnEl.innerHTML;
-  btnEl.innerHTML = '<span class="loading-spinner"></span>';
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Kaynak 1: Sözlük API'si (data dizisindeki TÜM girdiler/anlamlar taranır)
+async function fetchSentenceFromDictionary(word) {
   try {
     const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
-    if(!res.ok) throw new Error();
+    if (!res.ok) return null;
     const data = await res.json();
-    let sentence = "";
-    for(let meaning of data[0].meanings) {
-        for(let def of meaning.definitions) {
-            if(def.example) { sentence = def.example; break; }
+    if (!Array.isArray(data)) return null;
+    for (const entry of data) {
+      for (const meaning of (entry.meanings || [])) {
+        for (const def of (meaning.definitions || [])) {
+          if (def.example && def.example.trim()) return def.example.trim();
         }
-        if(sentence) break;
+      }
     }
-    btnEl.innerHTML = originalHtml;
-    return sentence;
-  } catch (e) {
-    btnEl.innerHTML = originalHtml;
     return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Kaynak 2: Tatoeba örnek cümle veritabanı (sözlükte bulunamazsa devreye girer)
+async function fetchSentenceFromTatoeba(word) {
+  try {
+    const res = await fetch(`https://tatoeba.org/en/api_v0/search?from=eng&to=eng&query=${encodeURIComponent(word)}&sort=relevance`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const results = Array.isArray(data.results) ? data.results : [];
+    const wordRe = new RegExp(`\\b${escapeRegex(word)}\\b`, 'i');
+    const candidates = results
+      .map(r => (r && r.text) ? r.text.trim() : '')
+      .filter(t => t && wordRe.test(t) && t.length >= 8 && t.length <= 140);
+    if (candidates.length === 0) return null;
+    // Kısa ve öğrenmeye uygun cümleleri tercih et
+    candidates.sort((a, b) => a.length - b.length);
+    return candidates[0];
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fetchExampleSentence(word, btnEl) {
+  if (!word) return null;
+  const originalHtml = btnEl ? btnEl.innerHTML : '';
+  if (btnEl) { btnEl.innerHTML = '<span class="loading-spinner"></span>'; btnEl.disabled = true; }
+
+  try {
+    // Önce sözlükten, bulunamazsa Tatoeba'dan dene
+    let sentence = await fetchSentenceFromDictionary(word);
+    if (!sentence) sentence = await fetchSentenceFromTatoeba(word);
+    return sentence || null;
+  } catch (e) {
+    return null;
+  } finally {
+    if (btnEl) { btnEl.innerHTML = originalHtml; btnEl.disabled = false; }
   }
 }
 
@@ -669,45 +708,125 @@ function openPreviewModal(id) {
           <div class="imgzone">${w.img ? `<img src="${w.img}">` : autoEmoji(w.en)}</div>
           <div class="textzone">
             <div class="en-word">${escapeHtml(w.en)}</div>
-            <div class="tr-word" style="opacity:1;">${escapeHtml(w.tr)}</div>
+            <div class="tr-word" id="previewTrWord">${escapeHtml(w.tr)}</div>
           </div>
         </div>
         <div class="card-back">
           <div class="back-sentence" id="previewBackSentence"></div>
           <div class="back-tr-sentence" id="previewBackTrSentence"></div>
+          <div class="back-hint" id="previewBackHint"></div>
         </div>
       </div>
     </div>
   `;
 
+  const previewPostcardEl = document.getElementById('previewPostcard');
+  const previewFlipHintEl = document.getElementById('previewFlipHint');
+  const previewHintText = "Anlamı görmek için dokun";
+  const previewHintTextFlipped = "Örnek cümle için çift dokun";
+
+  // ARKA YÜZ: örnek cümle (varsa Türkçesiyle birlikte, yoksa "yok" mesajı)
   const previewBackSentenceEl = document.getElementById('previewBackSentence');
   const previewBackTrSentenceEl = document.getElementById('previewBackTrSentence');
+  const previewBackHintEl = document.getElementById('previewBackHint');
   if (w.sentence) {
-    previewBackSentenceEl.innerHTML = `"${escapeHtml(w.sentence)}"`;
+    previewBackSentenceEl.innerHTML = `"${buildTappableSentence(w.sentence)}"`;
     previewBackTrSentenceEl.textContent = w.trSentence ? w.trSentence : '';
+    previewBackHintEl.textContent = 'Kelimeye dokun, Türkçesini gör';
   } else {
     previewBackSentenceEl.textContent = 'Örnek cümle yok';
     previewBackTrSentenceEl.textContent = '';
+    previewBackHintEl.textContent = '';
   }
 
-  // ÇİFT TIKLAMA: kartı ters çevirir (ön yüz <-> arka yüz)
-  const previewPostcardEl = document.getElementById('previewPostcard');
+  // ARKA YÜZ: örnek cümledeki kelimelere dokununca hem çeviri hem telaffuz
+  previewBackSentenceEl.addEventListener('click', async (e) => {
+    const wordEl = e.target.closest('.word-token');
+    if (!wordEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const alreadyOpenTooltip = wordEl.querySelector('.word-tooltip');
+
+    previewBackSentenceEl.querySelectorAll('.word-tooltip').forEach(t => { if (t.parentElement !== wordEl) t.remove(); });
+    previewBackSentenceEl.querySelectorAll('.word-token.active').forEach(x => { if (x !== wordEl) x.classList.remove('active'); });
+
+    if (alreadyOpenTooltip) {
+      alreadyOpenTooltip.remove();
+      wordEl.classList.remove('active');
+      return;
+    }
+
+    wordEl.classList.add('active');
+    const tooltip = document.createElement('span');
+    tooltip.className = 'word-tooltip';
+    tooltip.textContent = '···';
+    wordEl.appendChild(tooltip);
+
+    const cleanWord = wordEl.dataset.word.toLowerCase();
+    speakWord(cleanWord); // Kelimenin okunuşunu da duyur
+    if (wordTranslationCache.has(cleanWord)) {
+      tooltip.textContent = wordTranslationCache.get(cleanWord);
+      return;
+    }
+    const res = await autoTranslateWord(cleanWord);
+    if (!tooltip.isConnected) return;
+    if (res.error) { tooltip.textContent = '?'; }
+    else { tooltip.textContent = res.translation; wordTranslationCache.set(cleanWord, res.translation); }
+  });
+
+  // KART ÇEVİRME MANTIĞI (tekrar kartıyla birebir aynı):
+  // Tek dokun: anlam (tr-word) gözükür. Çift dokun: kart 3 boyutlu döner, örnek cümle gözükür.
+  function updatePreviewHint() {
+      if (!previewFlipHintEl) return;
+      if (previewPostcardEl.classList.contains('expanded')) {
+          previewFlipHintEl.style.visibility = 'hidden';
+      } else if (previewPostcardEl.classList.contains('flipped')) {
+          previewFlipHintEl.textContent = previewHintTextFlipped;
+          previewFlipHintEl.style.visibility = 'visible';
+      } else {
+          previewFlipHintEl.textContent = previewHintText;
+          previewFlipHintEl.style.visibility = 'visible';
+      }
+  }
+  updatePreviewHint();
+
   let previewClickTimer = null;
   previewPostcardEl.addEventListener('click', (e) => {
       if (e.target.closest('.tts-btn')) return;
+      if (e.target.closest('.word-token')) return;
+
       if (previewClickTimer !== null) {
+          // İkinci tıklama geldi -> çift tıklama
           clearTimeout(previewClickTimer);
           previewClickTimer = null;
+
+          previewPostcardEl.classList.add('flipped');
           previewPostcardEl.classList.toggle('expanded');
+          updatePreviewHint();
       } else {
-          previewClickTimer = setTimeout(() => { previewClickTimer = null; }, 260);
+          // İlk tıklama -> tek tıklama olup olmadığını anlamak için bekle
+          previewClickTimer = setTimeout(() => {
+              previewClickTimer = null;
+              previewPostcardEl.classList.toggle('flipped');
+              if (!previewPostcardEl.classList.contains('flipped')) {
+                  previewPostcardEl.classList.remove('expanded');
+              }
+              updatePreviewHint();
+          }, 260);
       }
   });
 
+  // SES BUTONU: kart ön yüzdeyse kelimeyi, arkaya çevrilip açıldıysa örnek cümleyi okur
   const pBtn = document.getElementById('previewTtsBtn');
   pBtn.addEventListener('click', function(e) {
       e.preventDefault(); e.stopPropagation();
-      speakWord(`${w.en}. ${w.sentence || ''}`, this);
+      const isExpanded = previewPostcardEl.classList.contains('expanded') && w.sentence;
+      if (isExpanded) {
+          speakWord(w.sentence, this);
+      } else {
+          speakWord(w.en, this);
+      }
   });
 
   const cropBtn = document.getElementById('cropFromPreviewBtn');
@@ -1107,7 +1226,10 @@ function renderReviewTab(){
   const hintTextFlipped = "Örnek cümle için çift dokun";
 
   main.innerHTML = `
-    <div class="progress-bar"><div style="width:${pct}%"></div></div>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+      <button class="icon-toggle-btn" id="exitSessionBtn" title="Tekrarı Bitir ve Ana Sayfaya Dön" style="flex:0 0 auto;">✕</button>
+      <div class="progress-bar" style="flex:1; margin-bottom:0;"><div style="width:${pct}%"></div></div>
+    </div>
     <div style="font-family:'Space Mono';font-size:11px;color:var(--ink-soft);text-align:center;margin-bottom:10px;">
       İlerleme: ${doneCount}/${session.totalUnique} &middot; Kuyruktaki Kart: ${session.queue.length - session.pos}
     </div>
@@ -1143,6 +1265,14 @@ function renderReviewTab(){
       <button class="act-btn good" onclick="resolveCard('right')"><span style="font-size:16px;">👉</span>+2 XP</button>
     </div>
   `;
+
+  document.getElementById('exitSessionBtn').addEventListener('click', () => {
+    if (confirm('Tekrar oturumundan çıkmak istiyor musun? Şimdiye kadarki ilerlemen zaten kaydedildi.')) {
+      window.speechSynthesis.cancel();
+      session = null;
+      renderReviewTab();
+    }
+  });
 
   // SES BUTONU MANTIĞI: Sadece 'click' eventi ile çalışır ve kaydırmayı durdurur.
   // Kart çevrilmemişse (ön yüz) sadece kelime okunur.
