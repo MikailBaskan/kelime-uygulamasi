@@ -154,6 +154,7 @@
   .card-front, .card-back{ position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; display:flex; flex-direction:column; }
   .card-back{ transform:rotateY(180deg); align-items:center; justify-content:center; padding:26px; text-align:center; }
   .card-back .back-sentence{ font-size:17px; font-style:italic; line-height:1.7; color:var(--ink); }
+  .card-back .back-tr-sentence{ margin-top:12px; font-size:14px; font-style:normal; line-height:1.5; color:var(--ink-soft); font-weight:500; }
   .card-back .back-hint{ margin-top:16px; font-size:11px; color:var(--ink-soft); font-style:normal; }
 
   .word-token{ position:relative; cursor:pointer; border-bottom:1px dashed var(--rust); padding:0 1px; }
@@ -592,19 +593,49 @@ function openPreviewModal(id) {
   previewWordId = id;
   const container = document.getElementById('previewCardContainer');
   container.innerHTML = `
-    <div class="postcard" style="position:relative; pointer-events:auto; touch-action:auto;">
-      <div class="stripe"></div>
+    <div class="postcard" id="previewPostcard" style="position:relative; pointer-events:auto; touch-action:auto;">
       <button class="tts-btn" id="previewTtsBtn">🔊</button>
-      <div class="imgzone">${w.img ? `<img src="${w.img}">` : autoEmoji(w.en)}</div>
-      <div class="textzone">
-        <div class="en-word">${escapeHtml(w.en)}</div>
-        <div class="tr-word" style="opacity:1;">${escapeHtml(w.tr)}</div>
-        ${w.sentence ? `<div class="sentence" style="opacity:1;">"${escapeHtml(w.sentence)}"</div>` : ''}
-        ${w.trSentence ? `<div class="tr-sentence" style="opacity:1;">"${escapeHtml(w.trSentence)}"</div>` : ''}
+      <div class="flipper" id="previewFlipper">
+        <div class="card-front">
+          <div class="stripe"></div>
+          <div class="imgzone">${w.img ? `<img src="${w.img}">` : autoEmoji(w.en)}</div>
+          <div class="textzone">
+            <div class="en-word">${escapeHtml(w.en)}</div>
+            <div class="tr-word" style="opacity:1;">${escapeHtml(w.tr)}</div>
+          </div>
+        </div>
+        <div class="card-back">
+          <div class="back-sentence" id="previewBackSentence"></div>
+          <div class="back-tr-sentence" id="previewBackTrSentence"></div>
+        </div>
       </div>
     </div>
   `;
-  
+
+  const previewBackSentenceEl = document.getElementById('previewBackSentence');
+  const previewBackTrSentenceEl = document.getElementById('previewBackTrSentence');
+  if (w.sentence) {
+    previewBackSentenceEl.innerHTML = `"${escapeHtml(w.sentence)}"`;
+    previewBackTrSentenceEl.textContent = w.trSentence ? w.trSentence : '';
+  } else {
+    previewBackSentenceEl.textContent = 'Örnek cümle yok';
+    previewBackTrSentenceEl.textContent = '';
+  }
+
+  // ÇİFT TIKLAMA: kartı ters çevirir (ön yüz <-> arka yüz)
+  const previewPostcardEl = document.getElementById('previewPostcard');
+  let previewClickTimer = null;
+  previewPostcardEl.addEventListener('click', (e) => {
+      if (e.target.closest('.tts-btn')) return;
+      if (previewClickTimer !== null) {
+          clearTimeout(previewClickTimer);
+          previewClickTimer = null;
+          previewPostcardEl.classList.toggle('expanded');
+      } else {
+          previewClickTimer = setTimeout(() => { previewClickTimer = null; }, 260);
+      }
+  });
+
   const pBtn = document.getElementById('previewTtsBtn');
   pBtn.addEventListener('click', function(e) {
       e.preventDefault(); e.stopPropagation();
@@ -1028,7 +1059,8 @@ function renderReviewTab(){
           </div>
           <div class="card-back">
             <div class="back-sentence" id="backSentence"></div>
-            ${card.sentence ? `<div class="back-hint">Kelimeye dokun, Türkçesini gör</div>` : ''}
+            <div class="back-tr-sentence" id="backTrSentence"></div>
+            <div class="back-hint" id="backHint"></div>
           </div>
         </div>
         <div class="swipe-tag not-learned">ÖĞRENİLMEDİ</div>
@@ -1062,8 +1094,18 @@ function renderReviewTab(){
 
   // ARKA YÜZ: örnek cümleyi kelime kelime dokunulabilir hale getir
   const backSentenceEl = document.getElementById('backSentence');
+  const backTrSentenceEl = document.getElementById('backTrSentence');
+  const backHintEl = document.getElementById('backHint');
   if (backSentenceEl) {
-    backSentenceEl.innerHTML = card.sentence ? `"${buildTappableSentence(card.sentence)}"` : '';
+    if (card.sentence) {
+      backSentenceEl.innerHTML = `"${buildTappableSentence(card.sentence)}"`;
+      if (backTrSentenceEl) backTrSentenceEl.textContent = card.trSentence ? card.trSentence : '';
+      if (backHintEl) backHintEl.textContent = 'Kelimeye dokun, Türkçesini gör';
+    } else {
+      backSentenceEl.textContent = 'Örnek cümle yok';
+      if (backTrSentenceEl) backTrSentenceEl.textContent = '';
+      if (backHintEl) backHintEl.textContent = '';
+    }
 
     backSentenceEl.addEventListener('click', async (e) => {
       const wordEl = e.target.closest('.word-token');
@@ -1114,7 +1156,7 @@ function renderReviewTab(){
           flipHintEl.style.visibility = 'hidden';
       } else if (postcardEl.classList.contains('flipped')) {
           flipHintEl.textContent = hintTextFlipped;
-          flipHintEl.style.visibility = card.sentence ? 'visible' : 'hidden';
+          flipHintEl.style.visibility = 'visible';
       } else {
           flipHintEl.textContent = hintText;
           flipHintEl.style.visibility = 'visible';
@@ -1130,11 +1172,9 @@ function renderReviewTab(){
           clearTimeout(clickTimer);
           clickTimer = null;
 
-          if (card.sentence) {
-              postcardEl.classList.add('flipped');
-              postcardEl.classList.add('expanded');
-              updateHint();
-          }
+          postcardEl.classList.add('flipped');
+          postcardEl.classList.add('expanded');
+          updateHint();
       } else {
           // İlk tıklama -> tek tıklama olup olmadığını anlamak için bekle
           clickTimer = setTimeout(() => {
