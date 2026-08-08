@@ -1364,35 +1364,24 @@ function renderReviewTab(){
     main.innerHTML = `
       <div class="card-panel finish-panel">
         <div class="big">🎉</div>
-        <h2>Tebrikler!</h2>
+        <h2>Tebrikler! Oturum Başarılı</h2>
         <p>Bu oturumdaki tüm kelimeleri öğrendin. İstatistiklerin güncellendi ve XP kazandın.</p>
         <div class="stat-grid">
           <div class="stat-box"><div class="num">${session.finishedIds.size}</div><div class="lbl">öğrenilen</div></div>
           <div class="stat-box"><div class="num">${session.wrongCount}</div><div class="lbl">hata (tekrar)</div></div>
         </div>
-        <button class="primary-btn teal" id="continueSessionBtn">➡️ Devam Et</button>
-        <button class="primary-btn outline" id="restartSessionBtn">🔄 Yeniden Başla</button>
-        <button class="primary-btn rust" id="endSessionFinishBtn">✕ Oturumu Bitir</button>
+        <button class="primary-btn outline" id="exitFinishBtn">✕ Çık</button>
+        <button class="primary-btn teal" id="restartSessionBtn">🔄 Tekrar Başla</button>
+        <button class="primary-btn rust" id="goHomeFinishBtn">🏠 Anasayfaya Dön</button>
       </div>
     `;
 
-    // Devam Et: aynı kategoriden (varsa) yeni tekrar zamanı gelmiş kartlarla devam eder
-    document.getElementById('continueSessionBtn').addEventListener('click', () => {
-      const filter = session.filter; const n = session.n;
-      let pool = [];
-      if (filter === 'DUE') pool = words.filter(w => w.nextReview <= Date.now());
-      else if (filter === 'ALL') pool = words.slice();
-      else pool = words.filter(w => Array.isArray(w.tags) && w.tags.includes(filter));
-
-      if (pool.length === 0) {
-        showToast('Şu an tekrar edilecek başka kart yok, harikasın! 🎉');
-        session = null; renderReviewTab();
-        return;
-      }
-      startSession(pool, n, filter);
+    // Çık: oturumdan çık, tekrar başlatma (yapılandırma) ekranına dön
+    document.getElementById('exitFinishBtn').addEventListener('click', () => {
+      session = null; renderReviewTab();
     });
 
-    // Yeniden Başla: bu oturumdaki aynı kartlarla baştan başlar
+    // Tekrar Başla: bu oturumdaki aynı kartlarla baştan başlar
     document.getElementById('restartSessionBtn').addEventListener('click', () => {
       const ids = session.originalIds || [];
       const poolWords = ids.map(id => words.find(w => w.id === id)).filter(Boolean);
@@ -1400,9 +1389,12 @@ function renderReviewTab(){
       startSession(poolWords, poolWords.length, session.filter);
     });
 
-    // Oturumu Bitir: ana menüye (oturum başlatma ekranına) döner
-    document.getElementById('endSessionFinishBtn').addEventListener('click', () => {
-      session = null; renderReviewTab();
+    // Anasayfaya Dön: oturumu kapatır ve Kelimelerim (ana) sekmesine geçer
+    document.getElementById('goHomeFinishBtn').addEventListener('click', () => {
+      session = null;
+      currentTab = 'words';
+      document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === 'words'));
+      render();
     });
 
     return;
