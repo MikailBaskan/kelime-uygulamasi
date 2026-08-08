@@ -159,17 +159,19 @@
     100% { box-shadow: 0 0 0 0 rgba(47, 143, 122, 0); }
   }
   .tts-btn.rate-mode { background: var(--stamp); border-color: var(--stamp); transform: scale(1.08); }
-  .tts-rate-badge{
-    position:absolute; top:-38px; left:50%; transform:translateX(-50%);
-    background:var(--ink); color:var(--white); font-family:'Space Mono'; font-size:12px; font-weight:700;
-    padding:5px 10px; border-radius:8px; white-space:nowrap; box-shadow:0 4px 10px rgba(0,0,0,0.2);
-    display:none; pointer-events:none;
+
+  /* Ses hızı göstergesi: postcard'ın overflow:hidden özelliği yüzünden buton içine
+     gömülü bir gösterge kırpılıp görünmez oluyordu. Bunun yerine ekrana sabit (fixed)
+     ve her zaman görünür, kartın üstünde yüzen bir gösterge kullanıyoruz. */
+  .tts-rate-float{
+    position:fixed; top:18px; left:50%; transform:translateX(-50%) scale(0.9); opacity:0;
+    background:var(--ink); color:var(--white); font-family:'Space Mono'; font-size:15px; font-weight:700;
+    padding:9px 18px; border-radius:999px; white-space:nowrap; box-shadow:0 6px 18px rgba(0,0,0,0.25);
+    display:flex; align-items:center; gap:8px; z-index:200; pointer-events:none;
+    transition:opacity .15s ease, transform .15s ease;
   }
-  .tts-rate-badge::after{
-    content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-    border:5px solid transparent; border-top-color:var(--ink);
-  }
-  .tts-btn.rate-mode .tts-rate-badge{ display:block; }
+  .tts-rate-float.show{ opacity:1; transform:translateX(-50%) scale(1); }
+  .tts-rate-float .lbl{ font-family:'Work Sans'; font-weight:600; font-size:11px; opacity:0.75; }
 
   /* Oturum tamamlandı (tebrikler) paneli */
   .finish-panel{ text-align:center; padding:34px 20px 26px; }
@@ -343,6 +345,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="tts-rate-float" id="ttsRateFloat">🔊 <span id="ttsRateFloatValue">1.00x</span> <span class="lbl">kaydırarak ayarla</span></div>
 
 <!-- Cropper.js Script -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
@@ -665,14 +668,15 @@ window.speechSynthesis.onvoiceschanged = function() {
 // Kısa dokunuşta ise normal şekilde metni okur (getTextFn ile alınır).
 function attachTtsHoldToAdjustRate(btnEl, getTextFn) {
   if (!btnEl) return;
-  const badge = btnEl.querySelector('.tts-rate-badge');
+  const floatBadge = document.getElementById('ttsRateFloat');
+  const floatValueEl = document.getElementById('ttsRateFloatValue');
   let holdTimer = null;
   let rateModeActive = false;
   let startX = 0;
   let baseRate = ttsRate;
 
   function updateBadge() {
-    if (badge) badge.textContent = ttsRate.toFixed(2) + 'x';
+    if (floatValueEl) floatValueEl.textContent = ttsRate.toFixed(2) + 'x';
   }
 
   function endHold() {
@@ -681,6 +685,7 @@ function attachTtsHoldToAdjustRate(btnEl, getTextFn) {
     if (rateModeActive) {
       rateModeActive = false;
       btnEl.classList.remove('rate-mode');
+      if (floatBadge) floatBadge.classList.remove('show');
       localStorage.setItem(TTS_RATE_KEY, String(ttsRate));
       showToast('Ses hızı: ' + ttsRate.toFixed(2) + 'x 🔊');
       // Ayarlar sekmesindeki gösterge açıksa onu da güncelle
@@ -703,6 +708,7 @@ function attachTtsHoldToAdjustRate(btnEl, getTextFn) {
       rateModeActive = true;
       btnEl.classList.add('rate-mode');
       updateBadge();
+      if (floatBadge) floatBadge.classList.add('show');
       if (navigator.vibrate) { try { navigator.vibrate(15); } catch(err){} }
     }, 320);
   });
@@ -805,7 +811,7 @@ function openPreviewModal(id) {
   const container = document.getElementById('previewCardContainer');
   container.innerHTML = `
     <div class="postcard" id="previewPostcard" style="pointer-events:auto; touch-action:auto;">
-      <button class="tts-btn" id="previewTtsBtn">🔊<span class="tts-rate-badge" id="previewTtsRateBadge"></span></button>
+      <button class="tts-btn" id="previewTtsBtn">🔊</button>
       <div class="flipper" id="previewFlipper">
         <div class="card-front">
           <div class="stripe"></div>
@@ -1424,7 +1430,7 @@ function renderReviewTab(){
     </div>
     <div class="deck-wrap">
       <div class="postcard" id="postcard">
-        <button class="tts-btn" id="ttsPlayBtn">🔊<span class="tts-rate-badge" id="ttsRateBadge"></span></button>
+        <button class="tts-btn" id="ttsPlayBtn">🔊</button>
         <div class="flipper" id="flipper">
           <div class="card-front">
             <div class="stripe"></div>
@@ -1630,12 +1636,15 @@ window.resolveCard = function(action){
   if (!session.streaks[actualCard.id]) session.streaks[actualCard.id] = { right: 0, left: 0 };
   const streak = session.streaks[actualCard.id];
 
-  // Kartın kaç sıra sonra tekrar geleceğini, deste boyutuna göre ölçekleyerek hesaplar.
-  // Böylece küçük destelerde de mantıklı, büyük destelerde de kartın hemen art arda
-  // gelmesini önleyecek kadar geniş bir aralık elde edilir.
-  function scaledGap(baseGap) {
+  // Kartın kaç sıra sonra tekrar geleceğini rastgele belirler (deste boyutuna göre ölçeklenir).
+  // Böylece kartlar hep aynı ritimde değil, tamamen rastgele aralıklarla karşımıza çıkar.
+  function randomGapInsert(cardId, minGap, maxGap, randomizeReverse) {
     const ceiling = Math.max(2, session.totalUnique - 1);
-    return Math.max(1, Math.min(baseGap, ceiling));
+    const lo = Math.max(1, Math.min(minGap, ceiling));
+    const hi = Math.max(lo, Math.min(maxGap, ceiling + Math.ceil(ceiling / 2)));
+    const gap = lo + Math.floor(Math.random() * (hi - lo + 1));
+    const insertAt = Math.max(session.pos + 1, Math.min(session.queue.length, session.pos + 1 + gap));
+    session.queue.splice(insertAt, 0, { id: cardId, reverse: randomizeReverse ? Math.random() > 0.5 : false });
   }
   
   if(action === 'down') {
@@ -1666,11 +1675,9 @@ window.resolveCard = function(action){
       showToast('Bu kelimede ustalaştın! 🌟');
       // (kuyruğa tekrar eklenmiyor)
     } else {
-      // 1. kez öğrenildi: biraz geç gelsin. 2. kez öğrenildi: daha da geç gelsin.
-      const baseGap = streak.right === 1 ? 7 : 15;
-      const gap = scaledGap(baseGap);
-      const insertAt = Math.min(session.queue.length, session.pos + 1 + gap);
-      session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: Math.random() > 0.5 });
+      // 1. kez öğrenildi: rastgele biraz geç gelsin. 2. kez öğrenildi: rastgele daha da geç gelsin.
+      if (streak.right === 1) randomGapInsert(actualCard.id, 5, 9, true);
+      else randomGapInsert(actualCard.id, 11, 18, true);
     }
     addXP(2);
   } 
@@ -1685,11 +1692,10 @@ window.resolveCard = function(action){
     streak.left += 1; streak.right = 0;
     session.wrongCount += 1;
 
-    // Üst üste öğrenilmedi dedikçe kart daha da sık karşımıza çıksın.
-    const baseGap = streak.left === 1 ? 4 : (streak.left === 2 ? 2 : 1);
-    const gap = scaledGap(baseGap);
-    const insertAt = Math.min(session.queue.length, session.pos + 1 + gap);
-    session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: false }); 
+    // Üst üste öğrenilmedi dedikçe kart rastgele ama daha da sık karşımıza çıksın.
+    if (streak.left === 1) randomGapInsert(actualCard.id, 3, 6, false);
+    else if (streak.left === 2) randomGapInsert(actualCard.id, 2, 3, false);
+    else randomGapInsert(actualCard.id, 1, 2, false);
   }
 
   saveData(); session.pos += 1; renderReviewTab();
