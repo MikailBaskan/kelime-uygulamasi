@@ -146,7 +146,8 @@
   .postcard .tr-word{ margin-top:8px; font-size:18px; font-weight:600; color:var(--rust); opacity:0; transition:opacity .2s ease; }
   .postcard .sentence { margin-top:10px; font-size:13px; font-style:italic; color:var(--ink-soft); opacity:0; transition:opacity .2s ease; }
   .postcard .tr-sentence { margin-top:4px; font-size:12px; color:var(--ink); opacity:0; transition:opacity .2s ease; line-height:1.2; font-weight:500;}
-  .postcard.flipped .tr-word, .postcard.flipped .sentence, .postcard.flipped .tr-sentence {opacity:1;}
+  .postcard.flipped .tr-word {opacity:1;}
+  .postcard.expanded .sentence, .postcard.expanded .tr-sentence {opacity:1;}
   
   .hint{ text-align:center; font-size:11px; color:var(--ink-soft); margin-top:6px; }
   
@@ -969,7 +970,8 @@ function renderReviewTab(){
   
   const qText = card._reverse ? card.tr : card.en;
   const aText = card._reverse ? card.en : card.tr;
-  const hintText = "Çevirmek için çift dokun";
+  const hintText = "Anlamı görmek için dokun";
+  const hintTextFlipped = "Örnek cümle için çift dokun";
 
   main.innerHTML = `
     <div class="progress-bar"><div style="width:${pct}%"></div></div>
@@ -1003,32 +1005,65 @@ function renderReviewTab(){
   `;
 
   // SES BUTONU MANTIĞI: Sadece 'click' eventi ile çalışır ve kaydırmayı durdurur.
+  // Kart çevrilmemişse (ön yüz) sadece kelime okunur.
+  // Kart çevrilip örnek cümle açılmışsa (expanded) sadece örnek cümle okunur.
   const ttsBtn = document.getElementById('ttsPlayBtn');
   ttsBtn.addEventListener('click', function(e) {
       e.preventDefault(); 
       e.stopPropagation();
-      speakWord(`${card.en}. ${card.sentence || ''}`, this);
+      const postcardNow = document.getElementById('postcard');
+      const isExpanded = postcardNow && postcardNow.classList.contains('expanded') && card.sentence;
+      if (isExpanded) {
+          speakWord(card.sentence, this);
+      } else {
+          speakWord(card.en, this);
+      }
   });
 
-  // KART ÇEVİRME: Çift Tıklama (Double Tap) Algoritması
+  // KART ÇEVİRME MANTIĞI:
+  // Tek tıkla: kart çevrilir, anlam (tr-word) gözükür.
+  // Çift tıkla: (kart zaten çevriliyken de olabilir) örnek cümle varsa o da gözükür.
   const postcardEl = document.getElementById('postcard');
-  let lastTapTime = 0;
-  
+  const flipHintEl = document.getElementById('flipHint');
+  let clickTimer = null;
+
+  function updateHint() {
+      if (!flipHintEl) return;
+      if (postcardEl.classList.contains('expanded')) {
+          flipHintEl.style.visibility = 'hidden';
+      } else if (postcardEl.classList.contains('flipped')) {
+          flipHintEl.textContent = hintTextFlipped;
+          flipHintEl.style.visibility = card.sentence ? 'visible' : 'hidden';
+      } else {
+          flipHintEl.textContent = hintText;
+          flipHintEl.style.visibility = 'visible';
+      }
+  }
+
   postcardEl.addEventListener('click', (e) => {
       if (dragMoved) return; // Kaydırma yapılıyorsa tıklamayı yoksay
       if (e.target.closest('.tts-btn')) return; // Ses butonuna tıklandıysa yoksay
 
-      const currentTime = new Date().getTime();
-      const tapLength = currentTime - lastTapTime;
-      
-      // Ardışık iki tıklama (300ms içinde) gerçekleşirse kartı çevir
-      if (tapLength < 300 && tapLength > 0) {
-          postcardEl.classList.toggle('flipped');
-          document.getElementById('flipHint').style.visibility = postcardEl.classList.contains('flipped') ? 'hidden' : 'visible';
-          // Tıklama sayacını sıfırla ki peş peşe çevirmelerde bug olmasın
-          lastTapTime = 0; 
+      if (clickTimer !== null) {
+          // İkinci tıklama geldi -> çift tıklama
+          clearTimeout(clickTimer);
+          clickTimer = null;
+
+          if (card.sentence) {
+              postcardEl.classList.add('flipped');
+              postcardEl.classList.add('expanded');
+              updateHint();
+          }
       } else {
-          lastTapTime = currentTime;
+          // İlk tıklama -> tek tıklama olup olmadığını anlamak için bekle
+          clickTimer = setTimeout(() => {
+              clickTimer = null;
+              postcardEl.classList.toggle('flipped');
+              if (!postcardEl.classList.contains('flipped')) {
+                  postcardEl.classList.remove('expanded');
+              }
+              updateHint();
+          }, 260);
       }
   });
 
