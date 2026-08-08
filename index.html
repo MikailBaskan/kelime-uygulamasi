@@ -1346,6 +1346,9 @@ function startSession(poolItems, n, filter){
     // learnedIds: şu an "öğrenildi" veya "tam öğrenildi" olarak işaretli kelimelerin id'leri.
     // Bir kelime "öğrenilmedi" olarak işaretlenirse buradan çıkarılır (ilerleme geri düşer).
     learnedIds: new Set(),
+    // streaks: her kelimenin bu oturumdaki üst üste "öğrenildi" / "öğrenilmedi" sayısı.
+    // Kart tekrar geliş sıklığı buna göre ayarlanır (Leitner tarzı artan/azalan aralık).
+    streaks: {},
     filter: filter || 'ALL', n: n, originalIds: selected.map(w => w.id)
   };
   renderReviewTab();
@@ -1623,6 +1626,17 @@ window.resolveCard = function(action){
   actualCard.seen = (actualCard.seen || 0) + 1;
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
+
+  if (!session.streaks[actualCard.id]) session.streaks[actualCard.id] = { right: 0, left: 0 };
+  const streak = session.streaks[actualCard.id];
+
+  // Kartın kaç sıra sonra tekrar geleceğini, deste boyutuna göre ölçekleyerek hesaplar.
+  // Böylece küçük destelerde de mantıklı, büyük destelerde de kartın hemen art arda
+  // gelmesini önleyecek kadar geniş bir aralık elde edilir.
+  function scaledGap(baseGap) {
+    const ceiling = Math.max(2, session.totalUnique - 1);
+    return Math.max(1, Math.min(baseGap, ceiling));
+  }
   
   if(action === 'down') {
     actualCard.correct = (actualCard.correct || 0) + 1;
@@ -1632,6 +1646,7 @@ window.resolveCard = function(action){
     
     // Tam öğrenildi: kalıcı olarak öğrenilmiş sayılır, bu oturumda bir daha karşımıza çıkmaz.
     session.learnedIds.add(actualCard.id);
+    streak.right = 0; streak.left = 0;
     session.correctCount += 1;
     addXP(10); showToast('+10 XP ✨');
   } 
@@ -1642,8 +1657,21 @@ window.resolveCard = function(action){
     
     // Öğrenildi: ilerleme çubuğuna eklenir (henüz kalıcı değil, tekrar sorulabilir).
     session.learnedIds.add(actualCard.id);
-    const insertAt = Math.min(session.queue.length, session.pos + 1 + 10);
-    session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: Math.random() > 0.5 });
+    streak.right += 1; streak.left = 0;
+
+    if (streak.right >= 3) {
+      // Üst üste 3. kez "öğrenildi" -> profesyonel uygulamalardaki gibi artık ustalaşmış sayılır,
+      // bu oturumda tekrar önümüze çıkmaz. Böylece aynı kelime sürekli tekrar etmez, farklı
+      // kartları görme şansı artar.
+      showToast('Bu kelimede ustalaştın! 🌟');
+      // (kuyruğa tekrar eklenmiyor)
+    } else {
+      // 1. kez öğrenildi: biraz geç gelsin. 2. kez öğrenildi: daha da geç gelsin.
+      const baseGap = streak.right === 1 ? 7 : 15;
+      const gap = scaledGap(baseGap);
+      const insertAt = Math.min(session.queue.length, session.pos + 1 + gap);
+      session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: Math.random() > 0.5 });
+    }
     addXP(2);
   } 
   else if (action === 'left') {
@@ -1654,8 +1682,13 @@ window.resolveCard = function(action){
     
     // Öğrenilmedi: daha önce "öğrenildi" işaretliyse ilerlemeden bir azaltılır.
     session.learnedIds.delete(actualCard.id);
+    streak.left += 1; streak.right = 0;
     session.wrongCount += 1;
-    const insertAt = Math.min(session.queue.length, session.pos + 1 + 5);
+
+    // Üst üste öğrenilmedi dedikçe kart daha da sık karşımıza çıksın.
+    const baseGap = streak.left === 1 ? 4 : (streak.left === 2 ? 2 : 1);
+    const gap = scaledGap(baseGap);
+    const insertAt = Math.min(session.queue.length, session.pos + 1 + gap);
     session.queue.splice(insertAt, 0, { id: actualCard.id, reverse: false }); 
   }
 
