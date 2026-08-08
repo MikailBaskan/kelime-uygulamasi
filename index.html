@@ -593,7 +593,7 @@ function openPreviewModal(id) {
   previewWordId = id;
   const container = document.getElementById('previewCardContainer');
   container.innerHTML = `
-    <div class="postcard" id="previewPostcard" style="position:relative; pointer-events:auto; touch-action:auto;">
+    <div class="postcard" id="previewPostcard" style="pointer-events:auto; touch-action:auto;">
       <button class="tts-btn" id="previewTtsBtn">🔊</button>
       <div class="flipper" id="previewFlipper">
         <div class="card-front">
@@ -1132,6 +1132,7 @@ function renderReviewTab(){
       wordEl.appendChild(tooltip);
 
       const cleanWord = wordEl.dataset.word.toLowerCase();
+      speakWord(cleanWord); // Kelimenin okunuşunu da duyur
       if (wordTranslationCache.has(cleanWord)) {
         tooltip.textContent = wordTranslationCache.get(cleanWord);
         return;
