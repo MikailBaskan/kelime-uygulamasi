@@ -106,8 +106,13 @@
   .primary-btn.teal{background:var(--teal);}
   .primary-btn.outline{background:transparent; color:var(--ink); border:1px solid var(--ink);}
 
-  .group-header{ font-family:'Space Mono'; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); background:var(--paper-dark); padding:7px 10px; border-radius:6px; margin:14px 0 6px; }
-  .group-header:first-child{ margin-top:0; }
+  .group-block{ margin:0; }
+  .group-header{ font-family:'Space Mono'; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); background:var(--paper-dark); padding:7px 8px 7px 10px; border-radius:6px; margin:14px 0 6px; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; }
+  .group-block:first-child .group-header{ margin-top:0; }
+  .group-title{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .group-toggle-btn{ flex-shrink:0; border:none; background:var(--white); color:var(--ink); width:24px; height:24px; border-radius:50%; font-size:11px; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.15); transition:transform .2s ease; }
+  .group-toggle-btn.open{ background:var(--teal); color:var(--white); }
+  .group-toggle-btn:active{ transform:scale(0.88); }
   .wordrow{ display:flex; align-items:center; gap:12px; padding:10px 4px; border-bottom:1px solid var(--paper-dark); cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout: none; }
   .wordrow:active{background:var(--paper);}
   .wordrow:last-child{border-bottom:none;}
@@ -1222,6 +1227,8 @@ function renderWordsTab(){
       else {
         const wordRowHtml = (w) => {
           const tagsArr = Array.isArray(w.tags) ? w.tags : [];
+          const totalAttempts = (w.correct||0) + (w.wrong||0);
+          const accPct = totalAttempts > 0 ? Math.round((w.correct||0) / totalAttempts * 100) : null;
           return `
           <div class="wordrow" data-id="${w.id}">
             <div class="thumb ${w.img ? 'has-photo' : ''}">
@@ -1237,6 +1244,7 @@ function renderWordsTab(){
                  ${w.nextReview <= Date.now() ? 'Tekrar Zamanı' : 'Öğrenildi'}
               </span>
               <br>✓${w.correct||0} ✕${w.wrong||0}
+              <br><span style="color:var(--ink-soft);">${accPct !== null ? `Başarı: %${accPct}` : 'Başarı: —'}</span>
             </div>
             <button class="del" data-id="${w.id}">✕</button>
           </div>
@@ -1244,7 +1252,7 @@ function renderWordsTab(){
 
         // Kelimeler etiketlerine göre ayrı gruplar halinde listelenir. Etiketi olmayan
         // kelimeler "Etiketsiz" grubunda toplanır. Her grup başlığının yanında parantez
-        // içinde o gruptaki kart sayısı gösterilir.
+        // içinde o gruptaki kart sayısı ve kelimeleri açıp kapatan bir ok butonu bulunur.
         const groups = new Map();
         words.forEach(w => {
           const tagsArr = (Array.isArray(w.tags) && w.tags.length) ? w.tags : ['Etiketsiz'];
@@ -1259,13 +1267,37 @@ function renderWordsTab(){
           return a.localeCompare(b, 'tr');
         });
 
-        listEl.innerHTML = groupNames.map(name => {
+        listEl.innerHTML = groupNames.map((name, idx) => {
           const groupWords = groups.get(name).slice().reverse();
+          const gid = 'grp' + idx;
           return `
-            <div class="group-header">${escapeHtml(name)} (${groupWords.length})</div>
-            ${groupWords.map(wordRowHtml).join('')}
+            <div class="group-block">
+              <div class="group-header" data-gid="${gid}">
+                <span class="group-title">${escapeHtml(name)} (${groupWords.length})</span>
+                <button class="group-toggle-btn" data-gid="${gid}" aria-label="Grubu aç/kapat">▼</button>
+              </div>
+              <div class="group-body" data-gid="${gid}" style="display:none;">
+                ${groupWords.map(wordRowHtml).join('')}
+              </div>
+            </div>
           `;
         }).join('');
+
+        listEl.querySelectorAll('.group-toggle-btn').forEach(btn => {
+          const toggle = () => {
+            const gid = btn.dataset.gid;
+            const body = listEl.querySelector(`.group-body[data-gid="${gid}"]`);
+            if(!body) return;
+            const isHidden = body.style.display === 'none';
+            body.style.display = isHidden ? 'block' : 'none';
+            btn.textContent = isHidden ? '▲' : '▼';
+            btn.classList.toggle('open', isHidden);
+          };
+          btn.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+          // Başlığın herhangi bir yerine dokununca da açılıp kapansın
+          const header = listEl.querySelector(`.group-header[data-gid="${btn.dataset.gid}"]`);
+          if(header) header.addEventListener('click', (e) => { if(!e.target.closest('.group-toggle-btn')) toggle(); });
+        });
         
         listEl.querySelectorAll('.del').forEach(btn=>{ btn.addEventListener('click', (e)=>{ e.stopPropagation(); if(confirm("Silmek istediğine emin misin?")) { words = words.filter(w=>w.id!==btn.dataset.id); saveData(); renderWordsTab(); } }); });
 
