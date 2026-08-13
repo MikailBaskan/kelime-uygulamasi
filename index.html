@@ -106,6 +106,8 @@
   .primary-btn.teal{background:var(--teal);}
   .primary-btn.outline{background:transparent; color:var(--ink); border:1px solid var(--ink);}
 
+  .group-header{ font-family:'Space Mono'; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); background:var(--paper-dark); padding:7px 10px; border-radius:6px; margin:14px 0 6px; }
+  .group-header:first-child{ margin-top:0; }
   .wordrow{ display:flex; align-items:center; gap:12px; padding:10px 4px; border-bottom:1px solid var(--paper-dark); cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout: none; }
   .wordrow:active{background:var(--paper);}
   .wordrow:last-child{border-bottom:none;}
@@ -1218,7 +1220,7 @@ function renderWordsTab(){
       const listEl = document.getElementById('wordList');
       if(words.length===0){ listEl.innerHTML = `<div class="empty"><div class="big">🪄</div>Henüz kelime yok. Yukarıdan ilk kartını ekle!</div>`; } 
       else {
-        listEl.innerHTML = words.slice().reverse().map(w=>{
+        const wordRowHtml = (w) => {
           const tagsArr = Array.isArray(w.tags) ? w.tags : [];
           return `
           <div class="wordrow" data-id="${w.id}">
@@ -1238,7 +1240,32 @@ function renderWordsTab(){
             </div>
             <button class="del" data-id="${w.id}">✕</button>
           </div>
-        `}).join('');
+        `};
+
+        // Kelimeler etiketlerine göre ayrı gruplar halinde listelenir. Etiketi olmayan
+        // kelimeler "Etiketsiz" grubunda toplanır. Her grup başlığının yanında parantez
+        // içinde o gruptaki kart sayısı gösterilir.
+        const groups = new Map();
+        words.forEach(w => {
+          const tagsArr = (Array.isArray(w.tags) && w.tags.length) ? w.tags : ['Etiketsiz'];
+          tagsArr.forEach(t => {
+            if(!groups.has(t)) groups.set(t, []);
+            groups.get(t).push(w);
+          });
+        });
+        const groupNames = Array.from(groups.keys()).sort((a,b)=>{
+          if(a==='Etiketsiz') return 1;
+          if(b==='Etiketsiz') return -1;
+          return a.localeCompare(b, 'tr');
+        });
+
+        listEl.innerHTML = groupNames.map(name => {
+          const groupWords = groups.get(name).slice().reverse();
+          return `
+            <div class="group-header">${escapeHtml(name)} (${groupWords.length})</div>
+            ${groupWords.map(wordRowHtml).join('')}
+          `;
+        }).join('');
         
         listEl.querySelectorAll('.del').forEach(btn=>{ btn.addEventListener('click', (e)=>{ e.stopPropagation(); if(confirm("Silmek istediğine emin misin?")) { words = words.filter(w=>w.id!==btn.dataset.id); saveData(); renderWordsTab(); } }); });
 
@@ -1286,13 +1313,21 @@ function buildTappableSentence(sentence) {
 }
 
 
+// Bir kelimenin doğru/yanlış oranı. Hiç denenmemiş kelimeler en çok pratiğe ihtiyaç
+// duyduğu için en düşük değeri (-1) alır ve sıralamada en öne gelir.
+function accuracyOf(w){
+  const total = (w.correct||0) + (w.wrong||0);
+  return total > 0 ? (w.correct||0) / total : -1;
+}
+
 function buildSessionConfigView(){
   const main = document.getElementById('main');
   try {
-      const allTags = new Set();
-      words.forEach(w => { if(Array.isArray(w.tags)) w.tags.forEach(t => allTags.add(t)); });
-      const tagsHtml = Array.from(allTags).map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-      const dueCount = words.filter(w => w.nextReview <= Date.now()).length;
+      const tagCounts = new Map();
+      words.forEach(w => { if(Array.isArray(w.tags)) w.tags.forEach(t => tagCounts.set(t, (tagCounts.get(t)||0) + 1)); });
+      const tagsHtml = Array.from(tagCounts.entries())
+        .sort((a,b) => a[0].localeCompare(b[0], 'tr'))
+        .map(([t,c]) => `<option value="${escapeHtml(t)}">${escapeHtml(t)} (${c})</option>`).join('');
 
       main.innerHTML = `
         <div class="card-panel">
@@ -1305,13 +1340,13 @@ function buildSessionConfigView(){
           
           <label class="field">Çalışılacak Kategori</label>
           <select id="sessionFilter" style="margin-bottom:14px;">
-            <option value="DUE">Zamanı Gelenler (${dueCount} kart)</option>
-            <option value="ALL">Tüm Kelimeler (${words.length} kart)</option>
+            <option value="REVIEW_TIME">Tekrar Zamanı (${words.length})</option>
+            <option value="ALL">Tüm Kelimeler (${words.length})</option>
             ${tagsHtml}
           </select>
 
-          <label class="field">Maksimum Kart Sayısı</label>
-          <input type="number" id="sessionSize" min="1" max="50" value="20">
+          <label class="field" id="sessionSizeLabel">Kaç kelime tekrarlanacak</label>
+          <input type="number" id="sessionSize" min="1" max="${Math.max(1, words.length)}" value="${Math.min(20, Math.max(1, words.length))}">
           
           <button class="primary-btn rust" id="startSessionBtn" ${words.length===0?'disabled':''}>
             🚀 Oturumu Başlat
@@ -1322,14 +1357,19 @@ function buildSessionConfigView(){
         document.getElementById('startSessionBtn').addEventListener('click', ()=>{
           closeKeyboard();
           const filter = document.getElementById('sessionFilter').value;
+          let n = parseInt(document.getElementById('sessionSize').value) || 20;
           let pool = [];
-          if (filter === 'DUE') pool = words.filter(w => w.nextReview <= Date.now());
+          if (filter === 'REVIEW_TIME') {
+            // Kelimelerim bölümündeki doğru/yanlış oranı en düşük (en çok pratiğe ihtiyaç
+            // duyan) kelimeler sıralanır; aşağıda seçilen sayı kadarı bu sıralamanın
+            // başından alınır.
+            pool = words.slice().sort((a,b) => accuracyOf(a) - accuracyOf(b)).slice(0, n);
+          }
           else if (filter === 'ALL') pool = words.slice();
           else pool = words.filter(w => Array.isArray(w.tags) && w.tags.includes(filter));
 
           if(pool.length === 0) return showToast('Bu kriterde kart bulunamadı!');
 
-          let n = parseInt(document.getElementById('sessionSize').value) || 20;
           startSession(pool, n, filter);
         });
       }
@@ -1346,7 +1386,9 @@ function shuffle(arr){
 
 function startSession(poolItems, n, filter){
   const selected = shuffle(poolItems).slice(0, n);
-  const pool = selected.map(w => ({ id: w.id, reverse: Math.random() > 0.5 }));
+  // İlk karşılaşmada her zaman İngilizcesi gösterilip Türkçesi sorulur. Kelime bilinip
+  // "öğrenildi" olarak işaretlenince bir sonraki gelişinde yönü ters çevrilir.
+  const pool = selected.map(w => ({ id: w.id, reverse: false }));
   session = {
     queue: pool, pos: 0, totalUnique: pool.length, correctCount: 0, wrongCount: 0,
     // learnedIds: şu an "öğrenildi" veya "tam öğrenildi" olarak işaretli kelimelerin id'leri.
@@ -1638,13 +1680,15 @@ window.resolveCard = function(action){
 
   // Kartın kaç sıra sonra tekrar geleceğini rastgele belirler (deste boyutuna göre ölçeklenir).
   // Böylece kartlar hep aynı ritimde değil, tamamen rastgele aralıklarla karşımıza çıkar.
-  function randomGapInsert(cardId, minGap, maxGap, randomizeReverse) {
+  // reverseValue: kart tekrar geldiğinde soru yönünün ters çevrilip çevrilmeyeceği (bilinen
+  // kelimeler bir dahaki sefere Türkçe->İngilizce, bilinmeyenler yine İngilizce->Türkçe sorulur).
+  function randomGapInsert(cardId, minGap, maxGap, reverseValue) {
     const ceiling = Math.max(2, session.totalUnique - 1);
     const lo = Math.max(1, Math.min(minGap, ceiling));
     const hi = Math.max(lo, Math.min(maxGap, ceiling + Math.ceil(ceiling / 2)));
     const gap = lo + Math.floor(Math.random() * (hi - lo + 1));
     const insertAt = Math.max(session.pos + 1, Math.min(session.queue.length, session.pos + 1 + gap));
-    session.queue.splice(insertAt, 0, { id: cardId, reverse: randomizeReverse ? Math.random() > 0.5 : false });
+    session.queue.splice(insertAt, 0, { id: cardId, reverse: reverseValue });
   }
   
   if(action === 'down') {
@@ -1653,7 +1697,8 @@ window.resolveCard = function(action){
     actualCard.ease = Math.min(3.0, actualCard.ease + 0.1);
     actualCard.nextReview = now + (actualCard.interval * dayMs);
     
-    // Tam öğrenildi: kalıcı olarak öğrenilmiş sayılır, bu oturumda bir daha karşımıza çıkmaz.
+    // Tam öğrenildi: kalıcı olarak öğrenilmiş sayılır, ilerleme çubuğu (üst bar) SADECE
+    // burada artar, bu oturumda bir daha karşımıza çıkmaz.
     session.learnedIds.add(actualCard.id);
     streak.right = 0; streak.left = 0;
     session.correctCount += 1;
@@ -1664,19 +1709,19 @@ window.resolveCard = function(action){
     actualCard.interval = Math.max(1, actualCard.interval || 1);
     actualCard.nextReview = now + (actualCard.interval * dayMs * 0.5); 
     
-    // Öğrenildi: ilerleme çubuğuna eklenir (henüz kalıcı değil, tekrar sorulabilir).
-    session.learnedIds.add(actualCard.id);
     streak.right += 1; streak.left = 0;
 
-    if (streak.right >= 3) {
-      // Üst üste 3. kez "öğrenildi" -> profesyonel uygulamalardaki gibi artık ustalaşmış sayılır,
-      // bu oturumda tekrar önümüze çıkmaz. Böylece aynı kelime sürekli tekrar etmez, farklı
-      // kartları görme şansı artar.
-      showToast('Bu kelimede ustalaştın! 🌟');
+    if (streak.right >= 4) {
+      // Üst üste 4. kez "öğrenildi" -> tam öğrenildi kabul edilir. İlerleme çubuğu (üst bar)
+      // burada artar ve bu oturumda kart bir daha karşımıza çıkmaz.
+      session.learnedIds.add(actualCard.id);
+      showToast('Bu kelimede ustalaştın! 🌟 Tam öğrenildi');
       // (kuyruğa tekrar eklenmiyor)
     } else {
-      // 1. kez öğrenildi: rastgele biraz geç gelsin. 2. kez öğrenildi: rastgele daha da geç gelsin.
+      // Kelime bilindiği için bir sonraki gelişinde ters yönde (Türkçe->İngilizce) sorulur.
+      // 1. kez öğrenildi: rastgele biraz geç gelsin. 2-3. kez: rastgele daha da geç gelsin.
       if (streak.right === 1) randomGapInsert(actualCard.id, 5, 9, true);
+      else if (streak.right === 2) randomGapInsert(actualCard.id, 8, 13, true);
       else randomGapInsert(actualCard.id, 11, 18, true);
     }
     addXP(2);
@@ -1687,11 +1732,12 @@ window.resolveCard = function(action){
     actualCard.interval = 0; 
     actualCard.nextReview = now; 
     
-    // Öğrenilmedi: daha önce "öğrenildi" işaretliyse ilerlemeden bir azaltılır.
+    // Öğrenilmedi: daha önce tam öğrenilmiş işaretliyse ilerleme çubuğundan geri düşer.
     session.learnedIds.delete(actualCard.id);
     streak.left += 1; streak.right = 0;
     session.wrongCount += 1;
 
+    // Kelime henüz öğrenilmediği için bir sonraki gelişinde yine İngilizce->Türkçe sorulur.
     // Üst üste öğrenilmedi dedikçe kart rastgele ama daha da sık karşımıza çıksın.
     if (streak.left === 1) randomGapInsert(actualCard.id, 3, 6, false);
     else if (streak.left === 2) randomGapInsert(actualCard.id, 2, 3, false);
