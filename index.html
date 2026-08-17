@@ -106,6 +106,16 @@
   .primary-btn.teal{background:var(--teal);}
   .primary-btn.outline{background:transparent; color:var(--ink); border:1px solid var(--ink);}
 
+  .audio-mode-toggle{ display:flex; gap:8px; margin-bottom:14px; box-sizing:border-box; }
+  .audio-mode-toggle input[type=radio]{ position:absolute; opacity:0; width:0; height:0; pointer-events:none; }
+  .audio-mode-opt{
+    box-sizing:border-box; flex:1 1 0; min-width:0; text-align:center; cursor:pointer; user-select:none;
+    background:transparent; color:var(--ink); border:1px solid var(--ink); border-radius:10px;
+    padding:12px 6px; font-family:'Work Sans'; font-weight:600; font-size:13px;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .audio-mode-opt.active{ background:var(--teal); color:var(--white); border-color:var(--teal); }
+
   .group-block{ margin:0; }
   .group-header{ font-family:'Space Mono'; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); background:var(--paper-dark); padding:7px 8px 7px 10px; border-radius:6px; margin:14px 0 6px; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; }
   .group-block:first-child .group-header{ margin-top:0; }
@@ -1398,13 +1408,11 @@ function buildSessionConfigView(){
           <input type="number" id="sessionSize" min="1" max="${Math.max(1, words.length)}" placeholder="-" value="">
 
           <label class="field">Ses Modu</label>
-          <div id="audioModeToggle" style="display:flex; gap:8px; margin-bottom:14px;">
-            <button type="button" class="primary-btn ${reviewAudioMode==='sesli' ? 'teal' : 'outline'}" data-mode="sesli" style="flex:1; padding:10px 8px; font-size:13px;">
-              🔊 Sesli Mod
-            </button>
-            <button type="button" class="primary-btn ${reviewAudioMode==='sessiz' ? 'teal' : 'outline'}" data-mode="sessiz" style="flex:1; padding:10px 8px; font-size:13px;">
-              🔇 Sessiz Mod
-            </button>
+          <div class="audio-mode-toggle">
+            <input type="radio" name="audioMode" id="audioModeSesli" value="sesli" ${reviewAudioMode==='sesli' ? 'checked' : ''}>
+            <label class="audio-mode-opt ${reviewAudioMode==='sesli' ? 'active' : ''}" for="audioModeSesli" data-mode="sesli">🔊 Sesli Mod</label>
+            <input type="radio" name="audioMode" id="audioModeSessiz" value="sessiz" ${reviewAudioMode==='sessiz' ? 'checked' : ''}>
+            <label class="audio-mode-opt ${reviewAudioMode==='sessiz' ? 'active' : ''}" for="audioModeSessiz" data-mode="sessiz">🔇 Sessiz Mod</label>
           </div>
           <p style="font-size:12px;color:var(--ink-soft);margin-top:-10px;">
             🔊 Sesli Mod'da anlamı görmek için karta dokunduğunda kelime otomatik okunur.<br>
@@ -1416,13 +1424,12 @@ function buildSessionConfigView(){
           </button>
         </div>
       `;
-      document.querySelectorAll('#audioModeToggle button').forEach(btn => {
-        btn.addEventListener('click', () => {
-          reviewAudioMode = btn.dataset.mode;
+      document.querySelectorAll('input[name="audioMode"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          reviewAudioMode = radio.value;
           localStorage.setItem(REVIEW_AUDIO_MODE_KEY, reviewAudioMode);
-          document.querySelectorAll('#audioModeToggle button').forEach(b => {
-            b.classList.toggle('teal', b.dataset.mode === reviewAudioMode);
-            b.classList.toggle('outline', b.dataset.mode !== reviewAudioMode);
+          document.querySelectorAll('.audio-mode-opt').forEach(lbl => {
+            lbl.classList.toggle('active', lbl.dataset.mode === reviewAudioMode);
           });
         });
       });
