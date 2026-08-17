@@ -1352,6 +1352,16 @@ function accuracyOf(w){
   return total > 0 ? (w.correct||0) / total : -1;
 }
 
+// Her kategori için "kaç kelime çalışılacak" kutusu boş (-) bırakılırsa kullanılacak
+// varsayılan kelime sayısını hesaplar. Kategori adının yanındaki parantez içindeki
+// sayı da aynı bu değerdir.
+function defaultCountFor(filter, tagCounts){
+  if (filter === 'REVIEW_TIME') return Math.min(20, words.length);
+  if (filter === 'RECENT') return Math.min(15, words.length);
+  if (filter === 'ALL') return words.length;
+  return tagCounts.get(filter) || 0;
+}
+
 function buildSessionConfigView(){
   const main = document.getElementById('main');
   try {
@@ -1372,13 +1382,14 @@ function buildSessionConfigView(){
           
           <label class="field">Çalışılacak Kategori</label>
           <select id="sessionFilter" style="margin-bottom:14px;">
-            <option value="REVIEW_TIME">Tekrar Zamanı (${words.length})</option>
+            <option value="REVIEW_TIME">Tekrar Zamanı (${defaultCountFor('REVIEW_TIME', tagCounts)})</option>
+            <option value="RECENT">Son Eklenenler (${defaultCountFor('RECENT', tagCounts)})</option>
             <option value="ALL">Tüm Kelimeler (${words.length})</option>
             ${tagsHtml}
           </select>
 
           <label class="field" id="sessionSizeLabel">Kaç kelime tekrarlanacak</label>
-          <input type="number" id="sessionSize" min="1" max="${Math.max(1, words.length)}" value="${Math.min(20, Math.max(1, words.length))}">
+          <input type="number" id="sessionSize" min="1" max="${Math.max(1, words.length)}" placeholder="-" value="">
           
           <button class="primary-btn rust" id="startSessionBtn" ${words.length===0?'disabled':''}>
             🚀 Oturumu Başlat
@@ -1386,16 +1397,35 @@ function buildSessionConfigView(){
         </div>
       `;
       if(words.length>0){
+        // Kategori değişince kutu boşsa (-) o kategorinin varsayılan sayısı placeholder
+        // olarak görünsün.
+        const sizeInput = document.getElementById('sessionSize');
+        const filterSelect = document.getElementById('sessionFilter');
+        const syncPlaceholder = () => {
+          sizeInput.placeholder = String(defaultCountFor(filterSelect.value, tagCounts) || '-');
+        };
+        syncPlaceholder();
+        filterSelect.addEventListener('change', syncPlaceholder);
+
         document.getElementById('startSessionBtn').addEventListener('click', ()=>{
           closeKeyboard();
           const filter = document.getElementById('sessionFilter').value;
-          let n = parseInt(document.getElementById('sessionSize').value) || 20;
+          const rawSize = document.getElementById('sessionSize').value;
+          // Kutu boş bırakıldıysa ( - ) o kategorinin varsayılan (parantezdeki) sayısı kullanılır.
+          let n = parseInt(rawSize);
+          if (!n || n < 1) n = defaultCountFor(filter, tagCounts);
           let pool = [];
           if (filter === 'REVIEW_TIME') {
-            // Kelimelerim bölümündeki doğru/yanlış oranı en düşük (en çok pratiğe ihtiyaç
-            // duyan) kelimeler sıralanır; aşağıda seçilen sayı kadarı bu sıralamanın
-            // başından alınır.
-            pool = words.slice().sort((a,b) => accuracyOf(a) - accuracyOf(b)).slice(0, n);
+            // En çok hata yapılan kelimeler önce gelir (yanlış sayısı en yüksek olan).
+            // Eşitlik durumunda doğru/yanlış oranı en düşük olan öne alınır.
+            pool = words.slice()
+              .sort((a,b) => (b.wrong||0) - (a.wrong||0) || accuracyOf(a) - accuracyOf(b))
+              .slice(0, n);
+          }
+          else if (filter === 'RECENT') {
+            // En son eklenen kelimeler (kelimeler diziye eklenme sırasıyla push edilir,
+            // dolayısıyla dizinin sonu en yeni eklenenlerdir).
+            pool = words.slice(-n).reverse();
           }
           else if (filter === 'ALL') pool = words.slice();
           else pool = words.filter(w => Array.isArray(w.tags) && w.tags.includes(filter));
